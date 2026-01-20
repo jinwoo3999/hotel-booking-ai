@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("USER")
+  spentAmount   Float     @default(0)
+  createdAt     DateTime  @default(now())
+
+  phone         String?   
+  address       String?
+  
+  accounts      Account[]
+  bookings      Booking[]
+  reviews       Review[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Room {
+  id            String   @id @default(cuid())
+  name          String
+  description   String
+  pricePerNight Float
+  capacity      Int      @default(2)
+  amenities     String[]
+  images        String[]
+  isFeatured    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  
+  bookings      Booking[]
+  reviews       Review[]
+}
+
+model Booking {
+  id          String    @id @default(cuid())
+  userId      String
+  roomId      String
+  checkIn     DateTime
+  checkOut    DateTime
+  totalPrice  Float
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id])
+  room        Room      @relation(fields: [roomId], references: [id])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  comment   String
+  userId    String
+  roomId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id])
+}
+
+model Voucher {
+  id          String   @id @default(cuid())
+  code        String   @unique // Mã giảm giá (VD: TET2026)
+  description String   // Mô tả (VD: Giảm 10% tối đa 500k)
+  discount    Float    // Số tiền giảm hoặc %
+  type        String   // "PERCENT" hoặc "FIXED"
+  minSpend    Float    // Đơn tối thiểu để dùng
+  expiryDate  DateTime // Hạn sử dụng
+  createdAt   DateTime @default(now())
+}
