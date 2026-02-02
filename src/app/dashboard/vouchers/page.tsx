@@ -1,67 +1,72 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Button } from "@/components/ui/button";
+import { redirect } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TicketPercent, Copy, Calendar, Sparkles } from "lucide-react";
+import { TicketPercent, Copy, CalendarDays, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default async function VoucherPage() {
+  const session = await auth();
+  if (!session?.user?.email) redirect("/login");
+
+  // Lấy danh sách Voucher từ DB
   const vouchers = await prisma.voucher.findMany({
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' } // Giờ dòng này sẽ chạy OK
   });
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
-      {/* Header: Sửa bg-gradient thành bg-linear */}
-      <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between bg-linear-to-r from-indigo-600 to-purple-600 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
-        <div className="relative z-10">
-            <h1 className="text-3xl md:text-4xl font-extrabold mb-2 flex items-center gap-3">
-                <TicketPercent className="h-8 w-8 md:h-10 md:w-10 text-yellow-300" />
-                Ví Voucher
+    <div className="pb-20">
+      <main className="container mx-auto max-w-4xl px-4 py-2">
+        <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                <TicketPercent className="h-8 w-8 text-indigo-600"/> Kho Voucher
             </h1>
-            <p className="text-indigo-100 text-lg">Săn mã giảm giá độc quyền cho chuyến đi của bạn.</p>
+            <p className="text-gray-500">Lưu mã để áp dụng khi đặt phòng nhé!</p>
         </div>
-        <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
-            <Sparkles className="h-64 w-64 text-white transform translate-x-1/3 -translate-y-1/3" />
-        </div>
-      </div>
 
-      {vouchers.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200 shadow-sm">
-            <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-gray-50 mb-4">
-                <TicketPercent className="h-10 w-10 text-gray-400" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900">Chưa có mã giảm giá nào</h3>
-            <p className="text-gray-500 mt-2">Vui lòng quay lại sau để nhận ưu đãi mới nhất!</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Thêm type: any cho voucher để fix lỗi TS */}
-            {vouchers.map((voucher: any) => (
-                <div key={voucher.id} className="group relative flex flex-col sm:flex-row h-auto sm:h-48 bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 border border-gray-100 overflow-hidden">
-                    {/* Sửa bg-gradient thành bg-linear */}
-                    <div className="relative w-full sm:w-40 bg-linear-to-br from-indigo-600 to-purple-700 text-white p-6 flex flex-col items-center justify-center text-center sm:border-r-2 border-dashed border-white/20">
-                        <span className="text-3xl font-black tracking-tighter drop-shadow-md">
-                            {voucher.type === "PERCENT" ? `${voucher.discount}%` : `${voucher.discount / 1000}k`}
-                        </span>
-                        <span className="text-xs font-bold bg-white/20 px-2 py-1 rounded mt-2 uppercase tracking-wide">GIẢM GIÁ</span>
-                    </div>
+        {vouchers.length > 0 ? (
+            <div className="grid gap-4">
+                {vouchers.map((voucher) => (
+                    <div key={voucher.id} className="group bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col md:flex-row items-center justify-between gap-4 hover:shadow-md transition-shadow relative overflow-hidden">
+                        
+                        {/* Trang trí */}
+                        <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                        <div className="absolute -right-6 -top-6 w-20 h-20 bg-indigo-50 rounded-full opacity-50 group-hover:scale-150 transition-transform"></div>
 
-                    <div className="flex-1 p-6 flex flex-col justify-between relative bg-white">
-                        <div>
-                            <div className="flex justify-between items-start mb-2">
-                                <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold border border-indigo-100">{voucher.code}</Badge>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full" title="Copy mã"><Copy className="h-4 w-4" /></Button>
+                        <div className="flex items-center gap-4 w-full md:w-auto z-10">
+                            <div className="h-16 w-16 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 font-bold text-xl border-2 border-indigo-200 border-dashed">
+                                %
                             </div>
-                            <h3 className="font-bold text-gray-900 text-lg leading-snug group-hover:text-indigo-600 transition-colors">{voucher.description}</h3>
-                            <p className="text-sm text-gray-500 mt-2">Đơn tối thiểu: <span className="font-medium text-gray-900">{new Intl.NumberFormat('vi-VN').format(voucher.minSpend)}đ</span></p>
+                            <div>
+                                <h3 className="font-bold text-lg text-gray-900">{voucher.code}</h3>
+                                <p className="text-sm text-gray-600">{voucher.description}</p>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                                    <span className="flex items-center gap-1"><Clock className="h-3 w-3"/> HSD: {new Date(voucher.endDate).toLocaleDateString('vi-VN')}</span>
+                                    {voucher.minSpend && <span>• Đơn tối thiểu: {(voucher.minSpend/1000).toLocaleString()}k</span>}
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs font-medium text-orange-600 mt-4 bg-orange-50 w-fit px-2 py-1 rounded-lg">
-                            <Calendar className="h-3 w-3" /> HSD: {new Date(voucher.expiryDate).toLocaleDateString('vi-VN')}
+
+                        <div className="flex flex-col md:items-end gap-1 w-full md:w-auto z-10">
+                            <p className="text-2xl font-black text-indigo-600">
+                                {voucher.type === 'PERCENT' ? `-${voucher.discount}%` : `-${(voucher.discount/1000).toLocaleString()}k`}
+                            </p>
+                            <Badge variant="secondary" className={voucher.usedCount >= voucher.usageLimit ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}>
+                                {voucher.usedCount >= voucher.usageLimit ? "Hết lượt dùng" : "Đang có hiệu lực"}
+                            </Badge>
                         </div>
                     </div>
-                </div>
-            ))}
-        </div>
-      )}
+                ))}
+            </div>
+        ) : (
+            <div className="text-center py-20 bg-white rounded-xl border border-dashed">
+                <TicketPercent className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <h3 className="font-bold text-gray-900">Chưa có mã giảm giá nào</h3>
+                <p className="text-gray-500 text-sm">Hãy theo dõi các chương trình khuyến mãi sắp tới nhé.</p>
+            </div>
+        )}
+      </main>
     </div>
   );
 }

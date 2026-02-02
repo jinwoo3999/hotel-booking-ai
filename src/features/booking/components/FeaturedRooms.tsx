@@ -13,7 +13,7 @@ const formatCurrency = (amount: number) => {
 export async function FeaturedRooms() {
   const rooms = await prisma.room.findMany({
     take: 4,
-    orderBy: { createdAt: 'desc' },
+    orderBy: { id: 'desc' },
   });
 
   if (rooms.length === 0) {
@@ -46,7 +46,6 @@ export async function FeaturedRooms() {
               <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded-md text-xs font-bold text-gray-900 flex items-center gap-1">
                 <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" /> 4.8
               </div>
-              {room.isFeatured && <Badge className="absolute top-3 left-3 bg-indigo-600 shadow-lg">Popular</Badge>}
             </div>
 
             <CardHeader className="p-4 pb-2">
@@ -66,7 +65,7 @@ export async function FeaturedRooms() {
 
             <CardFooter className="p-4 border-t bg-gray-50/50 flex items-center justify-between mt-auto">
               <div>
-                <span className="text-lg font-bold text-indigo-700 block">{formatCurrency(room.pricePerNight)}</span>
+                <span className="text-lg font-bold text-indigo-700 block">{formatCurrency(room.price)}</span>
                 <span className="text-xs text-muted-foreground">/ đêm</span>
               </div>
               

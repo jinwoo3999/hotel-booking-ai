@@ -136,8 +136,8 @@ export default function SettingsPage() {
         toast.success("Đổi mật khẩu thành công! Vui lòng đăng nhập lại.");
         setPassData({ current: "", new: "", confirm: "" }); // Reset form
 
-    } catch (err: any) {
-        toast.error(err.message);
+    } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Đổi mật khẩu thất bại");
     } finally {
         setLoading(false);
     }

@@ -3,13 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MobileSidebar } from "./MobileSidebar";
-import { LayoutDashboard, Hotel, History, Bot, Settings, LogOut, User, Sparkles, Gift } from "lucide-react";
+import dynamic from "next/dynamic";
+import { LayoutDashboard, Hotel, History, Settings, LogOut, User, Sparkles, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { signOut, useSession } from "next-auth/react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+const MobileSidebar = dynamic(
+  () => import("./MobileSidebar").then((mod) => mod.MobileSidebar),
+  { ssr: false }
+);
 
 export function TopNav() {
   const pathname = usePathname();
@@ -19,7 +24,6 @@ export function TopNav() {
     { title: "Trang Chủ", href: "/dashboard", icon: LayoutDashboard },
     { title: "Đặt Phòng", href: "/dashboard/booking", icon: Hotel },
     { title: "Lịch Sử", href: "/dashboard/history", icon: History },
-    { title: "AI Trợ Lý", href: "/dashboard/ai-assistant", icon: Bot, highlight: true },
     { title: "Cài Đặt", href: "/dashboard/settings", icon: Settings },
   ];
 
@@ -30,10 +34,10 @@ export function TopNav() {
         <div className="flex items-center gap-2 lg:gap-4">
           <MobileSidebar />
           <Link href="/dashboard" className="flex items-center gap-2 group shrink-0">
-            <div className="h-8 w-8 rounded-lg bg-linear-to-tr from-indigo-600 to-purple-500 flex items-center justify-center shadow-md shadow-indigo-200 group-hover:scale-105 transition-transform">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center shadow-md shadow-indigo-200 group-hover:scale-105 transition-transform">
               <Sparkles className="h-5 w-5 text-white fill-white" />
             </div>
-            <span className="text-xl font-extrabold tracking-tight hidden xl:block bg-linear-to-r from-indigo-700 via-purple-700 to-indigo-700 bg-clip-text text-transparent whitespace-nowrap">
+            <span className="text-xl font-extrabold tracking-tight hidden xl:block bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-700 bg-clip-text text-transparent whitespace-nowrap">
               Lumina Stay
             </span>
           </Link>
@@ -47,15 +51,12 @@ export function TopNav() {
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
                   isActive 
-                    ? "bg-indigo-50 bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent font-extrabold shadow-sm" 
+                    ? "bg-indigo-50 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent font-extrabold shadow-sm" 
                     : "text-muted-foreground hover:text-indigo-600 hover:bg-gray-100/50"
                 )}
               >
                 <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-indigo-600" : "currentColor")} />
                 {item.title}
-                {item.highlight && !isActive && (
-                  <span className="ml-1 flex h-2 w-2 rounded-full bg-indigo-600 animate-pulse shrink-0" />
-                )}
               </Link>
             );
           })}
@@ -72,7 +73,7 @@ export function TopNav() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={session.user.image} alt="Avatar" className="h-8 w-8 lg:h-9 lg:w-9 rounded-full object-cover border-2 border-indigo-200 group-hover:border-indigo-400 transition-colors shrink-0" />
                     ) : (
-                        <div className="h-8 w-8 lg:h-9 lg:w-9 rounded-full bg-linear-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold shadow-md border-2 border-white shrink-0">
+                        <div className="h-8 w-8 lg:h-9 lg:w-9 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold shadow-md border-2 border-white shrink-0">
                             {session.user.name?.charAt(0).toUpperCase() || "U"}
                         </div>
                     )}
@@ -105,7 +106,7 @@ export function TopNav() {
            ) : (
              <div className="flex items-center gap-2 sm:gap-3">
                 <Link href="/login" className="hidden sm:block"><Button variant="ghost" className="font-medium hover:text-indigo-600 hover:bg-indigo-50">Đăng nhập</Button></Link>
-                <Link href="/register"><Button size="sm" className="bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 font-bold shadow-md border-0 whitespace-nowrap">Đăng ký</Button></Link>
+                <Link href="/register"><Button size="sm" className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 font-bold shadow-md border-0 whitespace-nowrap">Đăng ký</Button></Link>
              </div>
            )}
         </div>

@@ -34,7 +34,7 @@ export function DashboardHero() {
            <img src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1600&q=80" alt="Bg" className="w-full h-full object-cover"/>
         </div>
         <div className="relative z-10 px-8 py-16 md:py-24 text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">Khám phá thế giới cùng <span className="text-indigo-300">AI</span></h1>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">Khám phá thế giới cùng <span className="text-indigo-300">Lumina Stay</span></h1>
           <p className="text-lg md:text-xl text-indigo-100 mb-8 max-w-2xl mx-auto">Đặt phòng, vé máy bay và xe đưa đón trọn gói.</p>
           
           <div className="bg-white p-4 rounded-2xl shadow-2xl max-w-3xl mx-auto text-gray-900">

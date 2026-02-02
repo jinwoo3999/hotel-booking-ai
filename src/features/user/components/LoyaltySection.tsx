@@ -9,7 +9,12 @@ import Link from "next/link";
 export function LoyaltySection() {
   const { data: session } = useSession();
   
-  const spentAmount = (session?.user as any)?.spentAmount || 0;
+  // Academic note: This project does not currently persist `spentAmount` in the User model.
+  // We keep the UI behavior stable by safely reading the optional field if present.
+  const spentAmount =
+    session?.user && typeof (session.user as unknown as { spentAmount?: number }).spentAmount === "number"
+      ? (session.user as unknown as { spentAmount: number }).spentAmount
+      : 0;
   const points = Math.floor(spentAmount / 10000); 
 
   let rank = "Thành viên Mới";
@@ -45,7 +50,7 @@ export function LoyaltySection() {
                         <span>Tiến độ lên {nextRank}</span>
                         <span>{points}/{target}</span>
                     </div>
-                    <Progress value={progress} className="h-2 bg-slate-700" indicatorColor="bg-yellow-400" />
+                    <Progress value={progress} className="h-2 bg-slate-700" />
                 </div>
             </div>
             <Button className="bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm">

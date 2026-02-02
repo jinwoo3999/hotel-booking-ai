@@ -1,11 +1,9 @@
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
-import { AuthOptions } from "next-auth";
-
-export const authOptions: AuthOptions = {
+export const authOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
@@ -23,13 +21,13 @@ export const authOptions: AuthOptions = {
           throw new Error('Thiếu thông tin đăng nhập');
         }
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
+          where: { email: (credentials as any)?.email || "" }
         });
         if (!user || !user.password) {
           throw new Error('Sai email hoặc mật khẩu');
         }
         const isCorrectPassword = await bcrypt.compare(
-          credentials.password,
+          (credentials as any)?.password || "",
           user.password
         );
         if (!isCorrectPassword) {
@@ -42,9 +40,8 @@ export const authOptions: AuthOptions = {
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       if (session?.user) {
-        // @ts-expect-error User id assignment
         session.user.id = token.sub;
       }
       return session;

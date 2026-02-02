@@ -6,7 +6,6 @@ import {
   LayoutDashboard, 
   Hotel, 
   History, 
-  Bot, 
   Settings, 
   LogOut 
 } from "lucide-react";
@@ -30,12 +29,6 @@ export function Sidebar({ className }: React.HTMLAttributes<HTMLDivElement>) {
       title: "Lịch Sử",
       href: "/dashboard/history",
       icon: History,
-    },
-    {
-      title: "AI Trợ Lý",
-      href: "/dashboard/ai-assistant",
-      icon: Bot,
-      highlight: true,
     },
     {
       title: "Cài Đặt",
@@ -66,17 +59,11 @@ export function Sidebar({ className }: React.HTMLAttributes<HTMLDivElement>) {
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-accent",
                 isActive 
                   ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300" 
-                  : "text-muted-foreground hover:text-foreground",
-                item.highlight && "text-indigo-600 dark:text-indigo-400"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <item.icon className={cn("h-4 w-4", isActive && "text-indigo-600")} />
               {item.title}
-              {item.highlight && (
-                <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">
-                  NEW
-                </span>
-              )}
             </Link>
           );
         })}

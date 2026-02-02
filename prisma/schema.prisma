@@ -3,96 +3,399 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql" // Hoặc mysql/sqlite
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          String    @default("USER")
-  spentAmount   Float     @default(0)
-  createdAt     DateTime  @default(now())
+// 1. USER & AUTH
+enum UserRole {
+  USER
+  PARTNER
+  ADMIN
+  SUPER_ADMIN
+}
 
-  phone         String?   
-  address       String?
-  
-  accounts      Account[]
-  bookings      Booking[]
-  reviews       Review[]
+model User {
+  id       String   @id @default(cuid())
+  name     String?
+  email    String   @unique
+  password String?
+  role     UserRole @default(USER)
+  image    String?
+
+  points        Int       @default(0)
+  emailVerified DateTime?
+
+  accounts Account[]
+  sessions Session[]
+
+  bookings       Booking[]
+  flightBookings FlightBooking[]
+  hotels         Hotel[]
+
+  vouchers  Voucher[] // Quan hệ N-N với Voucher
+  blogPosts BlogPost[]
+  aiConversations AiConversation[]
+  partnerApplications PartnerApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? @db.Text
-  session_state      String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 2. KHÁCH SẠN & BẢN ĐỒ
+model Hotel {
+  id          String   @id @default(cuid())
+  name        String
+  city        String
+  address     String
+  description String   @db.Text
+  images      String[]
+  rating      Float    @default(0)
+  status      String   @default("ACTIVE")
+
+  latitude  Float @default(11.940419)
+  longitude Float @default(108.458313)
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  rooms    Room[]
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Room {
-  id            String   @id @default(cuid())
-  name          String
-  description   String
-  pricePerNight Float
-  capacity      Int      @default(2)
-  amenities     String[]
-  images        String[]
-  isFeatured    Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  
-  bookings      Booking[]
-  reviews       Review[]
+  id          String @id @default(cuid())
+  hotelId     String
+  name        String
+  description String
+  price       Float
+
+  capacity  Int @default(2)
+  maxGuests Int @default(2)
+  quantity  Int @default(1)
+
+  images    String[]
+  amenities String[]
+
+  hotel       Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+  inventories RoomInventory[]
+}
+
+// 3. BOOKING & FLIGHT
+enum BookingStatus {
+  // PENDING means: created but not yet confirmed (typically awaiting payment).
+  // We keep this value for backwards compatibility with existing UI and data.
+  PENDING
+  // PENDING_PAYMENT is a more explicit variant used by the new payment flow.
+  // Existing UI that simply prints the status string will still work.
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+}
+
+// --- BLOG / CẨM NANG ---
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+  PENDING_REVIEW
+}
+
+enum AttractionStatus {
+  DRAFT
+  PUBLISHED
 }
 
 model Booking {
-  id          String    @id @default(cuid())
-  userId      String
-  roomId      String
-  checkIn     DateTime
-  checkOut    DateTime
-  totalPrice  Float
-  status      String    @default("PENDING")
-  createdAt   DateTime  @default(now())
+  id      String @id @default(cuid())
+  userId  String
+  hotelId String
+  roomId  String
+  voucherId String?
 
-  user        User      @relation(fields: [userId], references: [id])
-  room        Room      @relation(fields: [roomId], references: [id])
+  checkIn       DateTime
+  checkOut      DateTime
+  originalPrice Float
+  discount      Float    @default(0)
+  totalPrice    Float
+
+  paymentMethod String        @default("PAY_AT_HOTEL")
+  status        BookingStatus @default(PENDING)
+
+  guestName  String?
+  guestPhone String?
+  note       String?
+
+  user    User     @relation(fields: [userId], references: [id])
+  hotel   Hotel    @relation(fields: [hotelId], references: [id])
+  room    Room     @relation(fields: [roomId], references: [id])
+  voucher Voucher? @relation(fields: [voucherId], references: [id])
+  payment Payment?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([hotelId])
+  @@index([roomId])
+  @@index([status])
+  @@index([voucherId])
+}
+
+model BlogPost {
+  id         String     @id @default(cuid())
+  title      String
+  slug       String     @unique
+  excerpt    String?
+  content    String     @db.Text
+  coverImage String?
+  status     BlogStatus @default(DRAFT)
+
+  authorId String
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([authorId])
+}
+
+model Attraction {
+  id          String           @id @default(cuid())
+  name        String
+  city        String
+  address     String?
+  category    String?
+  description String?          @db.Text
+  images      String[]
+  status      AttractionStatus @default(DRAFT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([status])
+}
+
+// --- OTA INVENTORY CALENDAR ---
+// Date-based inventory per room, preventing overbooking with transactional updates.
+model RoomInventory {
+  id     String @id @default(cuid())
+  roomId String
+
+  // Stored as a date-only value in Postgres.
+  date DateTime @db.Date
+
+  // Total sellable inventory for that room on that date.
+  total  Int
+  // Already-reserved inventory for that room on that date.
+  booked Int @default(0)
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([roomId, date])
+  @@index([date])
+}
+
+// --- PAYMENT (DEMO BUT REAL LOGIC) ---
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+model Payment {
+  id        String @id @default(cuid())
+  bookingId String @unique
+
+  amount   Float
+  currency String        @default("VND")
+  method   String        @default("DEMO")
+  status   PaymentStatus @default(PENDING)
+
+  // Optional reference for future gateway integrations (kept for extensibility).
+  providerRef String?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+// --- POLICIES (DB-driven for AI explanations and enforcement) ---
+model Policy {
+  id String @id
+
+  // Times are stored as "HH:mm" strings to keep it simple and DB-portable.
+  checkInTime  String @default("14:00")
+  checkOutTime String @default("12:00")
+
+  // If cancellation happens within `cancellationDeadlineHours` before check-in,
+  // refundPercent becomes 0 and cancellation may be blocked depending on UI flow.
+  cancellationDeadlineHours Int @default(24)
+  refundPercent             Int @default(100) // 0..100
+
+  // Human-readable policy details for the AI assistant and UI.
+  refundPolicyText String @db.Text
+
+  // Cấu hình phí nghiệp vụ (dùng để tính giá trong OTA).
+  serviceFeePercent Float @default(0)
+  taxPercent        Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Flight {
+  id            String          @id @default(cuid())
+  airline       String
+  flightNumber  String
+  fromCity      String
+  toCity        String
+  departureTime DateTime
+  arrivalTime   DateTime
+  price         Float
+  bookings      FlightBooking[]
+}
+
+model FlightBooking {
+  id         String   @id @default(cuid())
+  userId     String
+  flightId   String
+  totalPrice Float
+  status     String   @default("CONFIRMED")
+  user       User     @relation(fields: [userId], references: [id])
+  flight     Flight   @relation(fields: [flightId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+// 4. VOUCHER & SETTINGS
+model Voucher {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  discount    Float
+  type        String // PERCENT | AMOUNT
+  description String?
+  minSpend    Float?
+  endDate     DateTime
+  usageLimit  Int      @default(100)
+  usedCount   Int      @default(0)
+
+  users User[]
+  bookings Booking[]
+
+  // --- QUAN TRỌNG: Cần 2 dòng này để fix lỗi ---
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // -------------------------------------------
+}
+
+model Settings {
+  id              String  @id
+  siteName        String
+  contactEmail    String
+  maintenanceMode Boolean @default(false)
 }
 
 model Review {
   id        String   @id @default(cuid())
-  rating    Int
-  comment   String
   userId    String
-  roomId    String
+  hotelId   String
+  rating    Int
+  comment   String?
   createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id])
-  room      Room     @relation(fields: [roomId], references: [id])
 }
 
-model Voucher {
+// Bảng lưu cuộc hội thoại với AI
+model AiConversation {
   id          String   @id @default(cuid())
-  code        String   @unique // Mã giảm giá (VD: TET2026)
-  description String   // Mô tả (VD: Giảm 10% tối đa 500k)
-  discount    Float    // Số tiền giảm hoặc %
-  type        String   // "PERCENT" hoặc "FIXED"
-  minSpend    Float    // Đơn tối thiểu để dùng
-  expiryDate  DateTime // Hạn sử dụng
+  userId      String?
+  userMessage String   @db.Text
+  aiResponse  String   @db.Text
   createdAt   DateTime @default(now())
+  
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Bảng đăng ký partner
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PartnerApplication {
+  id               String            @id @default(cuid())
+  userId           String?           // Optional - có thể chưa có account
+  
+  // Thông tin liên hệ
+  fullName         String
+  position         String?
+  email            String
+  phone            String
+  
+  // Thông tin khách sạn
+  hotelName        String
+  city             String
+  roomCount        Int?
+  address          String
+  website          String?
+  
+  // Thông tin kinh doanh
+  businessLicense  String?
+  taxCode          String?
+  description      String?           @db.Text
+  experience       String?
+  notes            String?           @db.Text
+  
+  // Trạng thái đơn
+  status           ApplicationStatus @default(PENDING)
+  submittedAt      DateTime          @default(now())
+  reviewedAt       DateTime?
+  reviewedBy       String?           // Admin ID
+  reviewNotes      String?           @db.Text
+  
+  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([status])
+  @@index([email])
+  @@index([submittedAt])
 }

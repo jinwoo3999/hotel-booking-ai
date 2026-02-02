@@ -25,7 +25,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         { description: { contains: query, mode: "insensitive" } },
       ],
     },
-    orderBy: { pricePerNight: 'asc' },
+    orderBy: { price: 'asc' },
   });
 
   return (
@@ -36,7 +36,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         </Link>
         <h1 className="text-3xl font-bold text-gray-900">Kết quả tìm kiếm</h1>
         <p className="text-muted-foreground">
-            Hiển thị {rooms.length} kết quả cho từ khóa <span className="font-bold text-indigo-600">"{query}"</span>
+            Hiển thị {rooms.length} kết quả cho từ khóa <span className="font-bold text-indigo-600">“{query}”</span>
         </p>
       </div>
 
@@ -44,13 +44,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-3xl border border-dashed">
             <div className="bg-white p-4 rounded-full shadow-sm mb-4"><SearchX className="h-10 w-10 text-gray-400" /></div>
             <h3 className="text-xl font-bold text-gray-900">Không tìm thấy phòng nào</h3>
-            <p className="text-gray-500 mb-6">Thử tìm với từ khóa khác như "Suite", "Deluxe", hoặc "View".</p>
+            <p className="text-gray-500 mb-6">Thử tìm với từ khóa khác như “Suite”, “Deluxe”, hoặc “View”.</p>
             <Link href="/dashboard"><Button variant="outline">Về trang chủ</Button></Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Thêm type: any cho room */}
-          {rooms.map((room: any) => (
+          {rooms.map((room) => (
              <Card key={room.id} className="group overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col h-full">
                 {/* Sửa aspect-[4/3] thành aspect-4/3 */}
                 <div className="relative aspect-4/3 overflow-hidden bg-gray-100">
@@ -58,7 +57,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                      <Image src={room.images[0]} alt={room.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110"/>
                   ) : <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>}
                   <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded-md text-xs font-bold text-gray-900 flex items-center gap-1"><Star className="h-3 w-3 fill-yellow-400 text-yellow-400" /> 4.8</div>
-                  {room.isFeatured && <Badge className="absolute top-3 left-3 bg-indigo-600 shadow-lg">Popular</Badge>}
                 </div>
 
                 <CardHeader className="p-4 pb-2">
@@ -78,7 +76,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
                 <CardFooter className="p-4 border-t bg-gray-50/50 flex items-center justify-between mt-auto">
                   <div>
-                    <span className="text-lg font-bold text-indigo-700 block">{formatCurrency(room.pricePerNight)}</span>
+                    <span className="text-lg font-bold text-indigo-700 block">{formatCurrency(room.price)}</span>
                     <span className="text-xs text-muted-foreground">/ đêm</span>
                   </div>
                   <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 shadow-md h-9" asChild>
