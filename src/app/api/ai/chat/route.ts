@@ -23,31 +23,50 @@ async function generateAdvancedAIResponse(message: string, context: any): Promis
     checkAvailability: /còn phòng|available|trống|có phòng|availability/.test(lowerMessage),
     cancelBooking: /hủy|cancel|không đặt|hủy bỏ/.test(lowerMessage),
     askInfo: /thông tin|info|địa chỉ|liên hệ|contact/.test(lowerMessage),
-    greeting: /xin chào|hello|hi|chào|hey/.test(lowerMessage)
+    greeting: /xin chào|hello|hi|chào|hey/.test(lowerMessage),
+    locationOnly: /^(đà nẵng|đà lạt|hà nội|nha trang|hồ chí minh|sài gòn|vũng tàu|phú quốc|hội an)$/i.test(lowerMessage.trim())
   };
 
-  // Extract location từ message với nhiều biến thể hơn
+  // Extract tên khách sạn cụ thể từ message
+  let specificHotel = null;
   let targetLocation = '';
   let locationHotels = hotels;
   
-  const locationMap = {
-    'đà nẵng': ['đà nẵng', 'da nang', 'danang', 'đà nẵng', 'dn'],
-    'đà lạt': ['đà lạt', 'dalat', 'da lat', 'đà lạt', 'dl'],
-    'hà nội': ['hà nội', 'hanoi', 'ha noi', 'hà nội', 'hn'],
-    'nha trang': ['nha trang', 'nhatrang', 'nt'],
-    'hồ chí minh': ['hồ chí minh', 'sài gòn', 'saigon', 'tp.hcm', 'tphcm', 'hcm', 'sg'],
-    'vũng tàu': ['vũng tàu', 'vung tau', 'vt'],
-    'phú quốc': ['phú quốc', 'phu quoc', 'pq'],
-    'hội an': ['hội an', 'hoi an', 'ha']
-  };
-
-  for (const [city, variants] of Object.entries(locationMap)) {
-    if (variants.some(variant => lowerMessage.includes(variant))) {
-      targetLocation = city;
-      locationHotels = hotels.filter((h: any) => 
-        variants.some(variant => h.city.toLowerCase().includes(variant))
-      );
+  for (const hotel of hotels) {
+    const hotelNameVariants = [
+      hotel.name.toLowerCase(),
+      hotel.name.toLowerCase().replace(/\s+/g, ''),
+      ...hotel.name.toLowerCase().split(' ')
+    ];
+    
+    if (hotelNameVariants.some(variant => lowerMessage.includes(variant))) {
+      specificHotel = hotel;
+      targetLocation = hotel.city;
+      locationHotels = [hotel];
       break;
+    }
+  }
+  // Extract location từ message với nhiều biến thể hơn (nếu chưa có từ tên khách sạn)
+  if (!targetLocation) {
+    const locationMap = {
+      'đà nẵng': ['đà nẵng', 'da nang', 'danang', 'đà nẵng', 'dn'],
+      'đà lạt': ['đà lạt', 'dalat', 'da lat', 'đà lạt', 'dl'],
+      'hà nội': ['hà nội', 'hanoi', 'ha noi', 'hà nội', 'hn'],
+      'nha trang': ['nha trang', 'nhatrang', 'nt'],
+      'hồ chí minh': ['hồ chí minh', 'sài gòn', 'saigon', 'tp.hcm', 'tphcm', 'hcm', 'sg'],
+      'vũng tàu': ['vũng tàu', 'vung tau', 'vt'],
+      'phú quốc': ['phú quốc', 'phu quoc', 'pq'],
+      'hội an': ['hội an', 'hoi an', 'ha']
+    };
+
+    for (const [city, variants] of Object.entries(locationMap)) {
+      if (variants.some(variant => lowerMessage.includes(variant))) {
+        targetLocation = city;
+        locationHotels = hotels.filter((h: any) => 
+          variants.some(variant => h.city.toLowerCase().includes(variant))
+        );
+        break;
+      }
     }
   }
 
@@ -149,6 +168,77 @@ Tôi là AI Assistant của Lumina Stay. Tôi có thể giúp bạn:
 
 Bạn muốn đi du lịch ở đâu ạ? 😊`;
 
+  } else if (intents.locationOnly && targetLocation) {
+    // Khi user chỉ nói tên địa điểm (VD: "Đà Nẵng")
+    if (locationHotels.length > 0) {
+      response = `🏨 **Khách sạn tại ${targetLocation.toUpperCase()}:**\n\n`;
+      
+      locationHotels.slice(0, 3).forEach((hotel: any, index: number) => {
+        const room = hotel.rooms[0];
+        response += `${index + 1}. **${hotel.name}** ⭐${hotel.rating}\n`;
+        response += `   📍 ${hotel.address}\n`;
+        response += `   💰 Từ ${room?.price?.toLocaleString() || 0}đ/đêm\n\n`;
+      });
+
+      response += `💬 **Bạn muốn làm gì tiếp theo?**\n`;
+      response += `• "Đặt phòng ${locationHotels[0].name} ngày mai"\n`;
+      response += `• "Giá phòng ở ${targetLocation}"\n`;
+      response += `• "Tìm khách sạn khác"`;
+
+      actions.push({
+        type: 'show_hotels',
+        data: { hotels: locationHotels.slice(0, 3), location: targetLocation }
+      });
+    }
+
+  } else if (specificHotel && intents.bookRoom) {
+    // Khi user nói tên khách sạn cụ thể + đặt phòng
+    const selectedRoom = specificHotel.rooms[0];
+    
+    if (hasSpecificDates && selectedRoom && isLoggedIn) {
+      response = `🎯 **Đang đặt phòng ${specificHotel.name}...**
+
+📋 **Thông tin đặt phòng:**
+🏨 Khách sạn: ${specificHotel.name}
+🛏️ Phòng: ${selectedRoom.name}
+📍 Địa điểm: ${specificHotel.city}
+📅 Thời gian: ${suggestedDates}
+👥 Số khách: ${guestCount} người
+💰 Tổng tiền: ${(selectedRoom.price * nights).toLocaleString()}đ
+
+⏳ Đang kiểm tra tình trạng phòng và xử lý đặt phòng...`;
+
+      actions.push({
+        type: 'book_room',
+        data: {
+          hotelId: specificHotel.id,
+          roomId: selectedRoom.id,
+          checkIn: checkInDate.toISOString().split('T')[0],
+          checkOut: checkOutDate.toISOString().split('T')[0],
+          guestCount,
+          specialRequests: `Đặt phòng qua AI Assistant - ${message}`
+        }
+      });
+    } else if (!isLoggedIn) {
+      response = `🔐 **Cần đăng nhập để đặt phòng ${specificHotel.name}**
+
+🚀 Đăng nhập ngay để đặt phòng chỉ trong 30 giây!`;
+    } else {
+      response = `🏨 **${specificHotel.name}** - ${specificHotel.city}
+
+${hasSpecificDates ? `📅 Ngày: ${suggestedDates}` : '📅 Cần xác định ngày nhận phòng'}
+👥 Số khách: ${guestCount} người
+💰 Giá từ: ${selectedRoom?.price?.toLocaleString() || 0}đ/đêm
+
+${!hasSpecificDates ? '💬 **Ví dụ:** "Đặt phòng ' + specificHotel.name + ' ngày mai 2 đêm"' : ''}`;
+
+      actions.push({
+        type: 'check_availability',
+        data: { hotels: [specificHotel], location: specificHotel.city }
+      });
+    }
+
+  } else if (intents.searchHotels && targetLocation) {
   } else if (intents.searchHotels && targetLocation) {
     if (locationHotels.length > 0) {
       response = `🏨 Tôi tìm thấy ${locationHotels.length} khách sạn tại ${targetLocation.toUpperCase()}:\n\n`;
@@ -267,17 +357,29 @@ Sau khi đăng nhập, chỉ cần nói: "Đặt phòng [địa điểm] [ngày]
       }
     }
 
-  } else if (intents.bookRoom && !targetLocation) {
-    response = `🤔 Bạn muốn đặt phòng ở đâu ạ?
+  } else {
+    // Default intelligent response - cải thiện để hiểu context tốt hơn
+    if (targetLocation && !intents.bookRoom && !intents.searchHotels) {
+      // User nói địa điểm nhưng không rõ intent
+      response = `🏨 **${targetLocation.toUpperCase()}** - Địa điểm tuyệt vời!
+
+💬 **Bạn muốn:**
+• "Tìm khách sạn ở ${targetLocation}"
+• "Đặt phòng ${targetLocation} ngày mai"
+• "Giá phòng ở ${targetLocation}"
+
+Tôi có thể giúp gì cho bạn về ${targetLocation}? 😊`;
+    } else if (intents.bookRoom && !targetLocation) {
+      // User muốn đặt phòng nhưng không nói địa điểm
+      response = `🤔 Bạn muốn đặt phòng ở đâu ạ?
 
 🌟 **Các địa điểm phổ biến:**
 ${[...new Set(hotels.slice(0, 8).map((h: any) => h.city))].map((city) => `• ${city}`).join('\n')}
 
 💬 **Ví dụ:** "Đặt phòng Đà Nẵng ngày mai 2 đêm cho 2 người"`;
-
-  } else {
-    // Default intelligent response
-    response = `🤖 Tôi hiểu bạn đang quan tâm đến dịch vụ khách sạn.
+    } else {
+      // Default response
+      response = `🤖 Tôi hiểu bạn đang quan tâm đến dịch vụ khách sạn.
 
 🎯 **Tôi có thể giúp bạn:**
 🔍 Tìm khách sạn theo địa điểm
@@ -293,6 +395,7 @@ ${[...new Set(hotels.slice(0, 8).map((h: any) => h.city))].map((city) => `• ${
 • "Có ưu đãi gì không?"
 
 Bạn cần tôi giúp gì cụ thể ạ? 😊`;
+    }
   }
 
   return { response, actions };
