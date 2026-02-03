@@ -319,10 +319,9 @@ model Voucher {
   users User[]
   bookings Booking[]
 
-  // --- QUAN TRỌNG: Cần 2 dòng này để fix lỗi ---
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  // -------------------------------------------
+
 }
 
 model Settings {

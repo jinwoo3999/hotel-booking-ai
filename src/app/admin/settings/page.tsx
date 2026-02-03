@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { updateSettings } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -7,13 +8,28 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Switch } from "@/components/ui/switch"; 
 import { Separator } from "@/components/ui/separator";
 import { Save, Settings, ShieldAlert } from "lucide-react";
+import { redirect } from "next/navigation";
 
 export default async function AdminSettingsPage() {
-  const settings = {
-    siteName: "Lumina Stay",
-    supportEmail: "support@lumina.com",
-    maintenanceMode: false
-  };
+  const session = await auth();
+  if (!session || (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN")) {
+    redirect("/login");
+  }
+
+  // Get settings from database
+  let settings = await prisma.settings.findUnique({
+    where: { id: "default" }
+  });
+
+  // Default settings if not found
+  if (!settings) {
+    settings = {
+      id: "default",
+      siteName: "Lumina Stay",
+      contactEmail: "support@lumina.com",
+      maintenanceMode: false
+    };
+  }
 
   return (
     <div className="space-y-6 p-6 pb-16">
@@ -54,7 +70,7 @@ export default async function AdminSettingsPage() {
                   id="supportEmail" 
                   name="supportEmail" 
                   type="email" 
-                  defaultValue={settings.supportEmail} 
+                  defaultValue={settings.contactEmail} 
                   placeholder="support@example.com" 
                   required
                 />

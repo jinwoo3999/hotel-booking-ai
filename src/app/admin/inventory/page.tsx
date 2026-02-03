@@ -37,7 +37,8 @@ export default async function AdminInventoryPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Quản lý Inventory Phòng</h1>
-        <form action={seedRoomInventory.bind(null, 365)}>
+        <form action={seedRoomInventory}>
+          <input type="hidden" name="daysAhead" value="365" />
           <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
             <Package className="w-4 h-4 mr-2" />
             Tạo Inventory (365 ngày)

@@ -617,11 +617,13 @@ export async function bookFlight(formData: FormData) {
 // --- 9. ROOM INVENTORY MANAGEMENT ---
 
 // Tạo inventory cho tất cả phòng (dùng khi seed hoặc admin setup)
-export async function seedRoomInventory(daysAhead: number = 365) {
+export async function seedRoomInventory(formData: FormData) {
   const session = await auth();
   if (session?.user?.role !== "ADMIN" && session?.user?.role !== "SUPER_ADMIN") {
-    return { error: "Không có quyền thực hiện" };
+    redirect("/admin");
   }
+
+  const daysAhead = parseInt(formData.get("daysAhead") as string) || 365;
 
   try {
     console.log("🔄 Seeding room inventory for", daysAhead, "days ahead...");
@@ -644,15 +646,12 @@ export async function seedRoomInventory(daysAhead: number = 365) {
 
     console.log(`✅ Room inventory seeding completed: ${totalCreated} rooms processed`);
     
+    revalidatePath("/admin/inventory");
     revalidatePath("/admin/hotels");
-    return { 
-      success: true, 
-      message: `Đã tạo inventory cho ${totalCreated} phòng trong ${daysAhead} ngày tới` 
-    };
 
   } catch (error) {
     console.error("❌ Room inventory seeding error:", error);
-    return { error: "Có lỗi xảy ra khi tạo inventory" };
+    // In production, you might want to show a toast or error message
   }
 }
 
@@ -683,6 +682,44 @@ export async function checkRoomAvailability(roomId: string, checkIn: string, che
 }
 
 // --- 10. PARTNER APPLICATION ACTIONS ---
+
+// --- 11. SETTINGS ACTIONS ---
+
+export async function updateSettings(formData: FormData) {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "SUPER_ADMIN") {
+    redirect("/admin");
+  }
+
+  try {
+    const siteName = formData.get("siteName") as string;
+    const supportEmail = formData.get("supportEmail") as string;
+    const maintenanceMode = formData.get("maintenanceMode") === "on";
+
+    // Upsert settings (create or update)
+    await prisma.settings.upsert({
+      where: { id: "default" },
+      create: {
+        id: "default",
+        siteName,
+        contactEmail: supportEmail,
+        maintenanceMode
+      },
+      update: {
+        siteName,
+        contactEmail: supportEmail,
+        maintenanceMode
+      }
+    });
+
+    console.log("✅ Settings updated successfully");
+    revalidatePath("/admin/settings");
+
+  } catch (error) {
+    console.error("❌ Settings update error:", error);
+    // In production, you might want to show a toast or error message
+  }
+}
 
 export async function submitPartnerApplication(formData: FormData) {
   console.log("🔄 Partner application submission started...");
