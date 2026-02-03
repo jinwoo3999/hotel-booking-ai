@@ -39,8 +39,8 @@ export default function HotelMap({ lat, lng, hotelName, address }: HotelMapProps
     const loadMap = async () => {
       try {
         const L = await import("leaflet");
-        await import("leaflet/dist/leaflet.css");
-
+        // CSS is handled by next.config.ts or global CSS imports
+        
         // Double check the container is available and clean
         if (!mapRef.current) return;
 
