@@ -239,7 +239,6 @@ ${!hasSpecificDates ? '💬 **Ví dụ:** "Đặt phòng ' + specificHotel.name 
     }
 
   } else if (intents.searchHotels && targetLocation) {
-  } else if (intents.searchHotels && targetLocation) {
     if (locationHotels.length > 0) {
       response = `🏨 Tôi tìm thấy ${locationHotels.length} khách sạn tại ${targetLocation.toUpperCase()}:\n\n`;
       
