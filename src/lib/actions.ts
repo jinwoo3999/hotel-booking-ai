@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
+import { getRoomAvailabilitySummary } from "@/lib/inventory";
 
 // Tạo khách sạn mới
 export async function createHotel(formData: FormData) {
@@ -106,7 +107,7 @@ export async function deleteRoom(roomId: string, hotelId: string) {
   revalidatePath(`/admin/hotels/${hotelId}`);
 }
 
-// Tạo booking mới
+// Tạo booking mới với kiểm tra inventory và auto-confirm payment
 export async function createBooking(formData: FormData) {
   const session = await auth();
   if (!session || !session.user?.id) {
@@ -118,9 +119,10 @@ export async function createBooking(formData: FormData) {
   const checkIn = new Date(formData.get("checkIn") as string);
   const checkOut = new Date(formData.get("checkOut") as string);
   const totalPrice = parseFloat(formData.get("totalPrice") as string) || 0;
+  const paymentMethod = formData.get("paymentMethod") as string || "PAY_AT_HOTEL";
 
   console.log("🔄 Creating booking for user:", session.user.id);
-  console.log("📋 Booking data:", { hotelId, roomId, checkIn, checkOut, totalPrice });
+  console.log("📋 Booking data:", { hotelId, roomId, checkIn, checkOut, totalPrice, paymentMethod });
 
   try {
     // Kiểm tra user có tồn tại không
@@ -166,38 +168,116 @@ export async function createBooking(formData: FormData) {
 
     console.log("✅ Room found:", room.name, "at hotel:", room.hotel.name);
 
-    const booking = await prisma.booking.create({
-      data: {
-        userId: user.id,
-        hotelId,
-        roomId,
-        checkIn,
-        checkOut,
-        originalPrice: totalPrice,
-        totalPrice,
-        status: "PENDING",
-        guestName: formData.get("guestName") as string || user.name || "Khách",
-        guestPhone: formData.get("guestPhone") as string || "",
-      },
+    // Kiểm tra tính khả dụng của phòng (inventory check)
+    const { available, remainingMin } = await getRoomAvailabilitySummary(roomId, checkIn, checkOut);
+    
+    if (!available || remainingMin <= 0) {
+      console.error("❌ Room not available for selected dates");
+      return { 
+        error: "Phòng đã hết chỗ trong khoảng thời gian bạn chọn. Vui lòng chọn ngày khác hoặc phòng khác.",
+        availableRooms: remainingMin 
+      };
+    }
+
+    console.log("✅ Room available, remaining:", remainingMin);
+
+    // Tạo booking với transaction để đảm bảo inventory được reserve
+    const booking = await prisma.$transaction(async (tx) => {
+      // Import các function cần thiết từ inventory
+      const { enumerateNights, ensureRoomInventoryRows, reserveRoomInventoryOrThrow } = await import("@/lib/inventory");
+      
+      const nights = enumerateNights(checkIn, checkOut);
+      
+      // Đảm bảo có inventory rows cho các ngày cần thiết
+      await ensureRoomInventoryRows(tx, room, nights);
+      
+      // Reserve inventory (sẽ throw error nếu không đủ phòng)
+      await reserveRoomInventoryOrThrow(tx, roomId, nights);
+
+      // Tạo booking
+      const newBooking = await tx.booking.create({
+        data: {
+          userId: user.id,
+          hotelId,
+          roomId,
+          checkIn,
+          checkOut,
+          originalPrice: totalPrice,
+          totalPrice,
+          status: paymentMethod === "PAY_NOW" ? "PENDING" : "PENDING",
+          paymentMethod,
+          guestName: formData.get("guestName") as string || user.name || "Khách",
+          guestPhone: formData.get("guestPhone") as string || "",
+        },
+      });
+
+      // Tạo payment record
+      await tx.payment.create({
+        data: {
+          bookingId: newBooking.id,
+          amount: totalPrice,
+          currency: "VND",
+          method: paymentMethod === "PAY_NOW" ? "CARD_PENDING" : "PAY_AT_HOTEL",
+          status: "PENDING",
+        },
+      });
+
+      return newBooking;
     });
 
     console.log("✅ Booking created successfully:", booking.id);
-    console.log("🔗 Should redirect to payment page:", `/payment/${booking.id}`);
 
-    revalidatePath("/dashboard/history");
-    
-    // Trả về success với URL để redirect
-    return { 
-      success: true, 
-      bookingId: booking.id,
-      redirectTo: `/payment/${booking.id}`,
-      message: "Đặt phòng thành công! Đang chuyển đến trang thanh toán..."
-    };
+    // Nếu là thanh toán bằng thẻ, tự động xử lý thanh toán
+    if (paymentMethod === "PAY_NOW") {
+      console.log("🔄 Processing automatic card payment...");
+      
+      // Simulate card payment processing
+      const cardResult = await autoConfirmCardPayment(booking.id, "VISA");
+      
+      if (cardResult.success) {
+        console.log("✅ Card payment successful, booking auto-confirmed");
+        revalidatePath("/dashboard/history");
+        return { 
+          success: true, 
+          bookingId: booking.id,
+          redirectTo: "/dashboard/history",
+          message: `Thanh toán thành công! Đặt phòng đã được xác nhận. ${cardResult.pointsEarned ? `Bạn nhận được ${cardResult.pointsEarned} điểm thưởng.` : ''}`,
+          autoConfirmed: true
+        };
+      } else {
+        console.log("❌ Card payment failed");
+        return { 
+          error: cardResult.error || "Thanh toán thẻ thất bại",
+          bookingId: booking.id,
+          redirectTo: `/payment/${booking.id}`
+        };
+      }
+    } else {
+      // Thanh toán tại khách sạn - chuyển đến trang thanh toán
+      console.log("🔗 Redirecting to payment page for PAY_AT_HOTEL");
+      revalidatePath("/dashboard/history");
+      
+      return { 
+        success: true, 
+        bookingId: booking.id,
+        redirectTo: `/payment/${booking.id}`,
+        message: "Đặt phòng thành công! Đang chuyển đến trang thanh toán..."
+      };
+    }
     
   } catch (error) {
     console.error("❌ Booking creation error:", error);
     
-    const errorMessage = error instanceof Error ? error.message : "Có lỗi xảy ra khi đặt phòng";
+    let errorMessage = "Có lỗi xảy ra khi đặt phòng";
+    
+    if (error instanceof Error) {
+      if (error.message === "ROOM_NOT_AVAILABLE") {
+        errorMessage = "Phòng đã hết chỗ trong khoảng thời gian bạn chọn. Vui lòng chọn ngày khác.";
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    
     return { error: errorMessage };
   }
 }
@@ -205,14 +285,58 @@ export async function createBooking(formData: FormData) {
 // Cập nhật trạng thái booking
 export async function updateBookingStatus(bookingId: string, newStatus: string) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "PARTNER" && session?.user?.role !== "SUPER_ADMIN") return;
+  if (!session || (session?.user?.role !== "ADMIN" && session?.user?.role !== "PARTNER" && session?.user?.role !== "SUPER_ADMIN")) {
+    console.error("❌ Unauthorized booking status update attempt");
+    return { error: "Không có quyền thực hiện" };
+  }
 
-  await prisma.booking.update({
-    where: { id: bookingId },
-    data: { status: newStatus as any },
-  });
-  revalidatePath("/admin/bookings");
-  revalidatePath("/dashboard/history");
+  try {
+    console.log("🔄 Updating booking status:", { bookingId, newStatus, userRole: session.user.role });
+
+    // Kiểm tra booking có tồn tại không
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { hotel: true, payment: true }
+    });
+
+    if (!booking) {
+      console.error("❌ Booking not found:", bookingId);
+      return { error: "Không tìm thấy đơn đặt phòng" };
+    }
+
+    // Nếu là Partner, chỉ được cập nhật booking của khách sạn mình
+    if (session.user.role === "PARTNER") {
+      if (booking.hotel.ownerId !== session.user.id) {
+        console.error("❌ Partner trying to update booking of other hotel");
+        return { error: "Không có quyền cập nhật đơn này" };
+      }
+    }
+
+    // Cập nhật booking status
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: newStatus as any },
+    });
+
+    // Nếu confirm booking, cũng cập nhật payment status
+    if (newStatus === "CONFIRMED" && booking.payment) {
+      await prisma.payment.update({
+        where: { bookingId },
+        data: { status: "PAID" }
+      });
+      console.log("✅ Payment status updated to PAID");
+    }
+
+    console.log("✅ Booking status updated successfully:", updatedBooking.status);
+
+    revalidatePath("/admin/bookings");
+    revalidatePath("/dashboard/history");
+    
+    return { success: true, booking: updatedBooking };
+  } catch (error) {
+    console.error("❌ Error updating booking status:", error);
+    return { error: "Có lỗi xảy ra khi cập nhật trạng thái" };
+  }
 }
 
 export async function confirmBookingPayment(bookingId: string) {
@@ -226,6 +350,100 @@ export async function confirmBookingPayment(bookingId: string) {
 
   revalidatePath("/dashboard/history");
   redirect("/dashboard/history");
+}
+
+// Tự động xác nhận thanh toán cho thẻ tín dụng (demo)
+export async function autoConfirmCardPayment(bookingId: string, cardType: string = "VISA") {
+  try {
+    console.log("🔄 Auto-confirming card payment:", { bookingId, cardType });
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { payment: true, user: true }
+    });
+
+    if (!booking) {
+      console.error("❌ Booking not found for auto-confirmation");
+      return { error: "Booking not found" };
+    }
+
+    // Simulate card payment processing (in real app, this would call payment gateway)
+    const isPaymentSuccessful = Math.random() > 0.1; // 90% success rate for demo
+
+    if (isPaymentSuccessful) {
+      // Update payment status
+      await prisma.payment.upsert({
+        where: { bookingId },
+        create: {
+          bookingId,
+          amount: booking.totalPrice,
+          currency: "VND",
+          method: `CARD_${cardType}`,
+          status: "PAID",
+          providerRef: `CARD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        },
+        update: {
+          status: "PAID",
+          method: `CARD_${cardType}`,
+          providerRef: `CARD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        }
+      });
+
+      // Update booking status to confirmed
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { 
+          status: "CONFIRMED",
+          paymentMethod: "PAY_NOW"
+        }
+      });
+
+      // Award loyalty points
+      const pointsEarned = Math.floor(booking.totalPrice / 100000);
+      if (pointsEarned > 0) {
+        await prisma.user.update({
+          where: { id: booking.userId },
+          data: { points: { increment: pointsEarned } }
+        });
+      }
+
+      console.log("✅ Card payment auto-confirmed successfully");
+      return { 
+        success: true, 
+        message: "Thanh toán thẻ thành công! Đặt phòng đã được xác nhận.",
+        pointsEarned 
+      };
+    } else {
+      // Payment failed
+      await prisma.payment.upsert({
+        where: { bookingId },
+        create: {
+          bookingId,
+          amount: booking.totalPrice,
+          currency: "VND",
+          method: `CARD_${cardType}`,
+          status: "CANCELLED"
+        },
+        update: {
+          status: "CANCELLED",
+          method: `CARD_${cardType}`
+        }
+      });
+
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: "CANCELLED" }
+      });
+
+      console.log("❌ Card payment failed");
+      return { 
+        error: "Thanh toán thẻ thất bại. Vui lòng thử lại hoặc chọn phương thức khác." 
+      };
+    }
+  } catch (error) {
+    console.error("❌ Auto card payment error:", error);
+    return { error: "Có lỗi xảy ra khi xử lý thanh toán thẻ" };
+  }
 }
 
 export async function requestPaymentConfirmation(bookingId: string) {
@@ -396,6 +614,74 @@ export async function bookFlight(formData: FormData) {
   redirect("/dashboard/history");
 }
 
+// --- 9. ROOM INVENTORY MANAGEMENT ---
+
+// Tạo inventory cho tất cả phòng (dùng khi seed hoặc admin setup)
+export async function seedRoomInventory(daysAhead: number = 365) {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "SUPER_ADMIN") {
+    return { error: "Không có quyền thực hiện" };
+  }
+
+  try {
+    console.log("🔄 Seeding room inventory for", daysAhead, "days ahead...");
+
+    const rooms = await prisma.room.findMany({
+      select: { id: true, quantity: true, name: true, hotel: { select: { name: true } } }
+    });
+
+    let totalCreated = 0;
+
+    for (const room of rooms) {
+      await prisma.$transaction(async (tx) => {
+        const { ensureFutureInventoryCalendar } = await import("@/lib/inventory");
+        await ensureFutureInventoryCalendar(tx, room, daysAhead);
+      });
+
+      console.log(`✅ Inventory created for ${room.hotel.name} - ${room.name}`);
+      totalCreated++;
+    }
+
+    console.log(`✅ Room inventory seeding completed: ${totalCreated} rooms processed`);
+    
+    revalidatePath("/admin/hotels");
+    return { 
+      success: true, 
+      message: `Đã tạo inventory cho ${totalCreated} phòng trong ${daysAhead} ngày tới` 
+    };
+
+  } catch (error) {
+    console.error("❌ Room inventory seeding error:", error);
+    return { error: "Có lỗi xảy ra khi tạo inventory" };
+  }
+}
+
+// Kiểm tra và hiển thị tình trạng inventory của phòng
+export async function checkRoomAvailability(roomId: string, checkIn: string, checkOut: string) {
+  try {
+    const { getRoomAvailabilitySummary } = await import("@/lib/inventory");
+    
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    
+    const availability = await getRoomAvailabilitySummary(roomId, checkInDate, checkOutDate);
+    
+    return {
+      success: true,
+      available: availability.available,
+      remainingRooms: availability.remainingMin,
+      checkIn: checkInDate.toISOString(),
+      checkOut: checkOutDate.toISOString()
+    };
+  } catch (error) {
+    console.error("❌ Room availability check error:", error);
+    return { 
+      success: false, 
+      error: "Không thể kiểm tra tình trạng phòng" 
+    };
+  }
+}
+
 // --- 10. PARTNER APPLICATION ACTIONS ---
 
 export async function submitPartnerApplication(formData: FormData) {
@@ -508,7 +794,7 @@ export async function approvePartnerApplicationAction(formData: FormData) {
       });
     }
 
-    revalidatePath("/admin/partner-applications");
+    revalidatePath("/admin/partner-apps");
   } catch (error) {
     console.error("Approve application error:", error);
   }
@@ -533,7 +819,7 @@ export async function rejectPartnerApplicationAction(formData: FormData) {
       }
     });
 
-    revalidatePath("/admin/partner-applications");
+    revalidatePath("/admin/partner-apps");
   } catch (error) {
     console.error("Reject application error:", error);
   }

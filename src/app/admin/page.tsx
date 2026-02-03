@@ -1,15 +1,30 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, Users, Calendar, Hotel, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, Star } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { startOfMonth, endOfMonth, subDays, format } from "date-fns";
 
 export default async function AdminDashboardPage() {
+  const session = await auth();
+  if (!session || !["ADMIN", "SUPER_ADMIN", "PARTNER"].includes(session.user.role)) {
+    redirect("/");
+  }
+
   const now = new Date();
   const startOfThisMonth = startOfMonth(now);
   const endOfThisMonth = endOfMonth(now);
   const startOfLastMonth = startOfMonth(subDays(startOfThisMonth, 1));
 
-  // Fetch comprehensive stats
+  // Phân quyền: SuperAdmin thấy tất cả, Partner chỉ thấy của mình
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
+  const isPartner = session.user.role === "PARTNER";
+
+  // Base filter cho Partner (chỉ khách sạn của mình)
+  const partnerFilter = isPartner ? { hotel: { ownerId: session.user.id } } : {};
+  const hotelFilter = isPartner ? { ownerId: session.user.id } : {};
+
+  // Fetch comprehensive stats với phân quyền
   const [
     totalRevenue,
     monthlyRevenue,
@@ -24,61 +39,84 @@ export default async function AdminDashboardPage() {
     bookingStatusBreakdown,
     lastMonthRevenue,
   ] = await Promise.all([
-    // Total confirmed revenue
-    prisma.booking.aggregate({
-      _sum: { totalPrice: true },
-      where: { status: "CONFIRMED" }
-    }),
-    // This month revenue
+    // Total confirmed revenue (Partner: chỉ từ khách sạn của mình)
     prisma.booking.aggregate({
       _sum: { totalPrice: true },
       where: { 
         status: "CONFIRMED",
-        createdAt: { gte: startOfThisMonth, lte: endOfThisMonth }
+        ...partnerFilter
       }
     }),
-    // User count
-    prisma.user.count({ where: { role: "USER" } }),
-    // Hotel count
-    prisma.hotel.count(),
-    // Total bookings
-    prisma.booking.count(),
-    // Pending bookings
-    prisma.booking.count({ where: { status: "PENDING" } }),
-    // Cancelled bookings
-    prisma.booking.count({ where: { status: "CANCELLED" } }),
-    // Confirmed bookings
-    prisma.booking.count({ where: { status: "CONFIRMED" } }),
-    // Recent bookings
+    // This month revenue (Partner: chỉ từ khách sạn của mình)
+    prisma.booking.aggregate({
+      _sum: { totalPrice: true },
+      where: { 
+        status: "CONFIRMED",
+        createdAt: { gte: startOfThisMonth, lte: endOfThisMonth },
+        ...partnerFilter
+      }
+    }),
+    // User count (Partner không cần thấy)
+    isAdmin ? prisma.user.count({ where: { role: "USER" } }) : Promise.resolve(0),
+    // Hotel count (Partner: chỉ khách sạn của mình)
+    prisma.hotel.count({ where: hotelFilter }),
+    // Total bookings (Partner: chỉ từ khách sạn của mình)
+    prisma.booking.count({ where: partnerFilter }),
+    // Pending bookings (Partner: chỉ từ khách sạn của mình)
+    prisma.booking.count({ 
+      where: { 
+        status: "PENDING",
+        ...partnerFilter
+      }
+    }),
+    // Cancelled bookings (Partner: chỉ từ khách sạn của mình)
+    prisma.booking.count({ 
+      where: { 
+        status: "CANCELLED",
+        ...partnerFilter
+      }
+    }),
+    // Confirmed bookings (Partner: chỉ từ khách sạn của mình)
+    prisma.booking.count({ 
+      where: { 
+        status: "CONFIRMED",
+        ...partnerFilter
+      }
+    }),
+    // Recent bookings (Partner: chỉ từ khách sạn của mình)
     prisma.booking.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
+      where: partnerFilter,
       include: {
         hotel: { select: { name: true, city: true } },
         user: { select: { name: true, email: true } },
         room: { select: { name: true } }
       }
     }),
-    // Top hotels by bookings
+    // Top hotels by bookings (Partner: chỉ khách sạn của mình)
     prisma.hotel.findMany({
       take: 5,
+      where: hotelFilter,
       orderBy: { bookings: { _count: "desc" } },
       include: {
         _count: { select: { bookings: true } },
         rooms: { select: { price: true } }
       }
     }),
-    // Booking status breakdown
+    // Booking status breakdown (Partner: chỉ từ khách sạn của mình)
     prisma.booking.groupBy({
       by: ["status"],
+      where: partnerFilter,
       _count: { status: true }
     }),
-    // Last month revenue for comparison
+    // Last month revenue for comparison (Partner: chỉ từ khách sạn của mình)
     prisma.booking.aggregate({
       _sum: { totalPrice: true },
       where: { 
         status: "CONFIRMED",
-        createdAt: { gte: startOfLastMonth, lt: startOfThisMonth }
+        createdAt: { gte: startOfLastMonth, lt: startOfThisMonth },
+        ...partnerFilter
       }
     }),
   ]);
@@ -91,16 +129,17 @@ export default async function AdminDashboardPage() {
     ? ((monthlyRevenueValue - lastMonthRevenueValue) / lastMonthRevenueValue) * 100 
     : 0;
 
-  const stats = [
+  // Tạo stats array khác nhau cho từng role
+  const baseStats = [
     { 
-      title: "Doanh Thu Tổng", 
+      title: isPartner ? "Doanh Thu Của Tôi" : "Doanh Thu Tổng", 
       value: `${totalRevenueValue.toLocaleString()} đ`, 
       icon: DollarSign, 
       color: "text-green-600",
       bgColor: "bg-green-100"
     },
     { 
-      title: "Doanh Thu Tháng", 
+      title: isPartner ? "Doanh Thu Tháng Này" : "Doanh Thu Tháng", 
       value: `${monthlyRevenueValue.toLocaleString()} đ`, 
       icon: TrendingUp, 
       color: revenueGrowth >= 0 ? "text-green-600" : "text-red-600",
@@ -108,21 +147,14 @@ export default async function AdminDashboardPage() {
       trend: revenueGrowth
     },
     { 
-      title: "Khách Hàng", 
-      value: userCount.toLocaleString(), 
-      icon: Users, 
-      color: "text-blue-600",
-      bgColor: "bg-blue-100"
-    },
-    { 
-      title: "Khách Sạn", 
+      title: isPartner ? "Khách Sạn Của Tôi" : "Tổng Khách Sạn", 
       value: hotelCount.toLocaleString(), 
       icon: Hotel, 
       color: "text-purple-600",
       bgColor: "bg-purple-100"
     },
     { 
-      title: "Đơn Đặt", 
+      title: isPartner ? "Đơn Đặt Của Tôi" : "Tổng Đơn Đặt", 
       value: bookingCount.toLocaleString(), 
       icon: Calendar, 
       color: "text-orange-600",
@@ -151,6 +183,19 @@ export default async function AdminDashboardPage() {
     },
   ];
 
+  // Chỉ SuperAdmin mới thấy thống kê khách hàng
+  const stats = isAdmin ? [
+    ...baseStats.slice(0, 2), // Doanh thu
+    { 
+      title: "Tổng Khách Hàng", 
+      value: userCount.toLocaleString(), 
+      icon: Users, 
+      color: "text-blue-600",
+      bgColor: "bg-blue-100"
+    },
+    ...baseStats.slice(2) // Khách sạn và booking stats
+  ] : baseStats;
+
   const statusColors: Record<string, string> = {
     PENDING: "bg-yellow-100 text-yellow-800",
     PENDING_PAYMENT: "bg-blue-100 text-blue-800",
@@ -168,9 +213,24 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-gray-900">📊 Dashboard Báo Cáo Doanh Thu</h2>
-        <div className="text-sm text-gray-500">
-          Cập nhật lần cuối: {format(now, "dd/MM/yyyy HH:mm")}
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">
+            {isPartner ? "📊 Dashboard Partner" : "📊 Dashboard Super Admin"}
+          </h2>
+          <p className="text-gray-600 mt-1">
+            {isPartner 
+              ? "Báo cáo doanh thu và thống kê khách sạn của bạn" 
+              : "Báo cáo tổng quan toàn hệ thống"
+            }
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="text-sm text-gray-500">
+            Cập nhật lần cuối: {format(now, "dd/MM/yyyy HH:mm")}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Đăng nhập với quyền: <span className="font-medium text-indigo-600">{session.user.role}</span>
+          </div>
         </div>
       </div>
 
@@ -202,7 +262,9 @@ export default async function AdminDashboardPage() {
         {/* Revenue Chart Placeholder */}
         <Card>
           <CardHeader>
-            <CardTitle>💰 Doanh Thu 6 Tháng Gần Đây</CardTitle>
+            <CardTitle>
+              💰 {isPartner ? "Doanh Thu Khách Sạn Của Tôi" : "Doanh Thu Toàn Hệ Thống"} - 6 Tháng
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64 flex items-end justify-between gap-2">
@@ -227,7 +289,9 @@ export default async function AdminDashboardPage() {
         {/* Booking Status Breakdown */}
         <Card>
           <CardHeader>
-            <CardTitle>📈 Trạng Thái Đặt Phòng</CardTitle>
+            <CardTitle>
+              📈 {isPartner ? "Trạng Thái Đặt Phòng Của Tôi" : "Trạng Thái Đặt Phòng Toàn Hệ Thống"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -264,7 +328,9 @@ export default async function AdminDashboardPage() {
         {/* Recent Bookings */}
         <Card>
           <CardHeader>
-            <CardTitle>🕒 Đặt Phòng Gần Đây</CardTitle>
+            <CardTitle>
+              🕒 {isPartner ? "Đặt Phòng Gần Đây Của Tôi" : "Đặt Phòng Gần Đây Toàn Hệ Thống"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -296,7 +362,9 @@ export default async function AdminDashboardPage() {
         {/* Top Hotels */}
         <Card>
           <CardHeader>
-            <CardTitle>🏆 Top Khách Sạn Theo Đơn</CardTitle>
+            <CardTitle>
+              🏆 {isPartner ? "Khách Sạn Của Tôi Theo Đơn" : "Top Khách Sạn Toàn Hệ Thống"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -340,20 +408,34 @@ export default async function AdminDashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <a href="/admin/hotels" className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
               <Hotel className="h-5 w-5 text-blue-600" />
-              <span className="font-medium text-blue-900">Quản lý Khách sạn</span>
+              <span className="font-medium text-blue-900">
+                {isPartner ? "Khách sạn của tôi" : "Quản lý Khách sạn"}
+              </span>
             </a>
             <a href="/admin/bookings" className="flex items-center gap-2 p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
               <Calendar className="h-5 w-5 text-green-600" />
-              <span className="font-medium text-green-900">Quản lý Booking</span>
+              <span className="font-medium text-green-900">
+                {isPartner ? "Đơn đặt của tôi" : "Quản lý Booking"}
+              </span>
             </a>
-            <a href="/admin/users" className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
-              <Users className="h-5 w-5 text-purple-600" />
-              <span className="font-medium text-purple-900">Quản lý User</span>
-            </a>
-            <a href="/admin/settings" className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-              <TrendingUp className="h-5 w-5 text-gray-600" />
-              <span className="font-medium text-gray-900">Cài đặt</span>
-            </a>
+            {isAdmin && (
+              <a href="/admin/users" className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                <Users className="h-5 w-5 text-purple-600" />
+                <span className="font-medium text-purple-900">Quản lý User</span>
+              </a>
+            )}
+            {isAdmin && (
+              <a href="/admin/partner-apps" className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
+                <Users className="h-5 w-5 text-orange-600" />
+                <span className="font-medium text-orange-900">Đơn Partner</span>
+              </a>
+            )}
+            {isAdmin && (
+              <a href="/admin/settings" className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <TrendingUp className="h-5 w-5 text-gray-600" />
+                <span className="font-medium text-gray-900">Cài đặt</span>
+              </a>
+            )}
           </div>
         </CardContent>
       </Card>

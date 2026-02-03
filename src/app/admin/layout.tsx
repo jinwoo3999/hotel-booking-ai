@@ -10,6 +10,7 @@ import {
   Settings, 
   BookOpen,
   MapPin,
+  Package,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -33,9 +34,10 @@ export default async function AdminLayout({
     
     { href: "/admin/bookings", label: "Quản lý Booking", icon: CalendarDays },
     { href: "/admin/hotels", label: isSuperAdmin ? "Tất cả khách sạn" : "Khách sạn của tôi", icon: Hotel },
+    ...(isSuperAdmin ? [{ href: "/admin/inventory", label: "Quản lý Inventory", icon: Package }] : []),
     { href: "/admin/blogs", label: "Cẩm nang", icon: BookOpen },
     ...(isSuperAdmin ? [{ href: "/admin/attractions", label: "Điểm vui chơi", icon: MapPin }] : []),
-    ...(isSuperAdmin ? [{ href: "/admin/partner-applications", label: "Đơn đăng ký Partner", icon: Users }] : []),
+    ...(isSuperAdmin ? [{ href: "/admin/partner-apps", label: "Đơn đăng ký Partner", icon: Users }] : []),
     
     ...(isSuperAdmin ? [
         { href: "/admin/users", label: "Người dùng hệ thống", icon: Users },

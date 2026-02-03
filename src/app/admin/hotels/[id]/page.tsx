@@ -9,17 +9,23 @@ import Link from "next/link";
 
 export default async function AdminHotelDetailPage(props: { params: Promise<{ id: string }> }) {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "SUPER_ADMIN") redirect("/");
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "SUPER_ADMIN" && session?.user?.role !== "PARTNER") redirect("/");
 
   const params = await props.params;
   const { id } = params;
 
+  // Logic phân quyền: ADMIN/SUPER_ADMIN thấy tất cả, PARTNER chỉ thấy của mình
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
+
   const hotel = await prisma.hotel.findUnique({
-    where: { id },
+    where: { 
+      id,
+      ...(isAdmin ? {} : { ownerId: session.user.id })
+    },
     include: { rooms: true }
   });
 
-  if (!hotel) return <div>Không tìm thấy khách sạn</div>;
+  if (!hotel) return <div>Không tìm thấy khách sạn hoặc bạn không có quyền truy cập</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 p-8">

@@ -19,10 +19,13 @@ import { createHotel } from "@/lib/actions";
 
 export default async function AdminHotelsPage() {
   const session = await auth();
-  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "SUPER_ADMIN") redirect("/");
+  if (session?.user?.role !== "ADMIN" && session?.user?.role !== "SUPER_ADMIN" && session?.user?.role !== "PARTNER") redirect("/");
 
+  // Logic phân quyền: ADMIN/SUPER_ADMIN thấy tất cả, PARTNER chỉ thấy của mình
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
+  
   const hotels = await prisma.hotel.findMany({
-    where: { ownerId: session.user.id },
+    where: isAdmin ? {} : { ownerId: session.user.id },
     include: { rooms: true }, // Đảm bảo đã include rooms
     orderBy: { createdAt: 'desc' }
   });

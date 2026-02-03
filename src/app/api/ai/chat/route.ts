@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-// Tích hợp AI model thực sự
+// Tích hợp AI model thực sự với khả năng hiểu ngữ cảnh linh hoạt
 async function generateSmartAIResponse(message: string, context: any): Promise<string> {
   const { hotels, vouchers, attractions, user, currentTime, isLoggedIn } = context;
   
-  // Phân tích vị trí được hỏi trong tin nhắn
+  // Phân tích vị trí được hỏi trong tin nhắn (giữ nguyên logic này)
   const lowerMessage = message.toLowerCase();
   let targetLocation = '';
   let locationHotels = hotels;
@@ -31,51 +31,67 @@ async function generateSmartAIResponse(message: string, context: any): Promise<s
     locationAttractions = attractions.filter((a: any) => a.city.toLowerCase().includes('hồ chí minh') || a.city.toLowerCase().includes('sài gòn'));
   }
 
-  // Chuẩn bị context cho AI model với thông tin đã lọc theo vị trí
-  const systemPrompt = `Bạn là trợ lý AI thông minh của Lumina Stay - hệ thống đặt phòng khách sạn hàng đầu Việt Nam.
+  // Tạo system prompt linh hoạt và thông minh hơn
+  const systemPrompt = `Bạn là AI Assistant thông minh của Lumina Stay - hệ thống đặt phòng khách sạn hàng đầu Việt Nam.
+
+NHIỆM VỤ: Trả lời câu hỏi của khách hàng một cách TỰ NHIÊN, THÔNG MINH và HỮU ÍCH dựa trên dữ liệu thực từ hệ thống.
 
 THÔNG TIN HỆ THỐNG HIỆN TẠI:
-- Khách sạn: ${hotels.length} khách sạn đang hoạt động
-- Voucher: ${vouchers.length} voucher giảm giá có hiệu lực
-- Điểm tham quan: ${attractions.length} địa điểm du lịch
 - Thời gian: ${currentTime}
-- Người dùng: ${isLoggedIn ? `Đã đăng nhập (${user?.name || 'Khách hàng'})` : 'Chưa đăng nhập'}
+- Người dùng: ${isLoggedIn ? `${user?.name || 'Khách hàng'} (đã đăng nhập)` : 'Khách (chưa đăng nhập)'}
+- Tổng khách sạn: ${hotels.length}
+- Voucher có hiệu lực: ${vouchers.length}
+- Điểm tham quan: ${attractions.length}
+
+DỮ LIỆU KHÁCH SẠN:
+${hotels.map((h: any) => `- ${h.name} (${h.city}): ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm, ${h.rating}⭐, ${h.address}`).join('\n')}
+
+VOUCHER GIẢM GIÁ:
+${vouchers.map((v: any) => `- ${v.code}: Giảm ${v.type === 'PERCENT' ? v.discount + '%' : v.discount.toLocaleString() + 'đ'}${v.minSpend ? ` (đơn từ ${v.minSpend.toLocaleString()}đ)` : ''}, HSD: ${new Date(v.endDate).toLocaleDateString('vi-VN')}`).join('\n')}
+
+ĐIỂM THAM QUAN:
+${attractions.map((a: any) => `- ${a.name} (${a.city})${a.category ? ` - ${a.category}` : ''}${a.address ? `, ${a.address}` : ''}`).join('\n')}
 
 ${targetLocation ? `
 🎯 KHÁCH HÀNG HỎI VỀ: ${targetLocation}
 
-KHÁCH SẠN TẠI ${targetLocation.toUpperCase()}:
-${locationHotels.length > 0 ? locationHotels.map((h: any) => `- ${h.name}: Từ ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm, Rating: ${h.rating}/5, Địa chỉ: ${h.address}`).join('\n') : `KHÔNG CÓ khách sạn nào tại ${targetLocation}`}
+KHÁCH SẠN TẠI ${targetLocation}:
+${locationHotels.length > 0 ? locationHotels.map((h: any) => `- ${h.name}: ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm, ${h.rating}⭐, ${h.address}`).join('\n') : `KHÔNG CÓ khách sạn nào tại ${targetLocation}`}
 
-ĐIỂM THAM QUAN TẠI ${targetLocation.toUpperCase()}:
-${locationAttractions.length > 0 ? locationAttractions.map((a: any) => `- ${a.name}${a.category ? ` (${a.category})` : ''}${a.address ? `, Địa chỉ: ${a.address}` : ''}`).join('\n') : `KHÔNG CÓ điểm tham quan nào tại ${targetLocation}`}
+ĐIỂM THAM QUAN TẠI ${targetLocation}:
+${locationAttractions.length > 0 ? locationAttractions.map((a: any) => `- ${a.name}${a.category ? ` (${a.category})` : ''}${a.address ? `, ${a.address}` : ''}`).join('\n') : `KHÔNG CÓ điểm tham quan nào tại ${targetLocation}`}
 
 ⚠️ QUAN TRỌNG: CHỈ trả lời về ${targetLocation}, KHÔNG đề cập đến thành phố khác!
-` : `
-DANH SÁCH TẤT CẢ KHÁCH SẠN:
-${hotels.map((h: any) => `- ${h.name} (${h.city}): Từ ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm, Rating: ${h.rating}/5, Địa chỉ: ${h.address}`).join('\n')}
+` : ''}
 
-ĐIỂM THAM QUAN:
-${attractions.map((a: any) => `- ${a.name} (${a.city})${a.category ? ` - ${a.category}` : ''}${a.address ? `, Địa chỉ: ${a.address}` : ''}`).join('\n')}
-`}
+NGUYÊN TẮC PHẢN HỒI THÔNG MINH:
 
-VOUCHER HIỆN CÓ:
-${vouchers.map((v: any) => `- ${v.code}: Giảm ${v.type === 'PERCENT' ? v.discount + '%' : v.discount.toLocaleString() + 'đ'}${v.minSpend ? ` (đơn từ ${v.minSpend.toLocaleString()}đ)` : ''}, HSD: ${new Date(v.endDate).toLocaleDateString('vi-VN')}`).join('\n')}
+1. **HIỂU NGỮ CẢNH**: Phân tích ý định thực sự của khách hàng, không chỉ dựa vào từ khóa
+2. **TỰ NHIÊN**: Trả lời như một người bạn am hiểu du lịch, không dùng template cứng
+3. **CHÍNH XÁC**: CHỈ dùng thông tin từ dữ liệu trên, KHÔNG bịa đặt
+4. **HỮU ÍCH**: Đưa ra gợi ý cụ thể, hành động tiếp theo rõ ràng
+5. **CÁ NHÂN HÓA**: Điều chỉnh phong cách dựa trên trạng thái đăng nhập
+6. **LINH HOẠT**: Xử lý cả câu hỏi đơn giản và phức tạp
 
-🚨 HƯỚNG DẪN PHẢN HỒI CỰC KỲ QUAN TRỌNG:
-1. CHỈ trả lời về thông tin THỰC TẾ từ danh sách trên, KHÔNG bịa đặt
-2. ${targetLocation ? `Khách hỏi về ${targetLocation} - CHỈ trả lời về ${targetLocation}, TUYỆT ĐỐI KHÔNG đề cập thành phố khác` : 'Nếu khách hỏi về vị trí cụ thể, chỉ trả lời về vị trí đó'}
-3. ${targetLocation && locationHotels.length === 0 ? `Nói rõ "Hiện tại chưa có khách sạn tại ${targetLocation}"` : ''}
-4. Luôn thân thiện, sử dụng emoji phù hợp
-5. Đề xuất hành động tiếp theo (đặt phòng, xem chi tiết, liên hệ)
-6. Trả lời bằng tiếng Việt tự nhiên
+PHONG CÁCH:
+- Thân thiện, nhiệt tình nhưng chuyên nghiệp
+- Sử dụng emoji phù hợp (không quá nhiều)
+- Câu văn tự nhiên, không máy móc
+- Đưa ra lời khuyên thực tế và hữu ích
+- Khuyến khích tương tác tiếp theo
 
-VÍ DỤ ĐÚNG:
-- Hỏi: "Khách sạn Đà Lạt" → CHỈ nói về Lumina Đà Lạt Resort, KHÔNG nhắc đến Hà Nội
-- Hỏi: "Khách sạn Hà Nội" → CHỈ nói về Lumina Grand Hà Nội, KHÔNG nhắc đến Đà Lạt
-- Hỏi: "Khách sạn Nha Trang" → "Hiện chưa có khách sạn tại Nha Trang"
+VÍ DỤ XỬ LÝ THÔNG MINH:
+- "Khách sạn Đà Lạt" → Giới thiệu khách sạn Đà Lạt + gợi ý lịch trình + voucher phù hợp
+- "Tôi muốn đi du lịch" → Hỏi thêm về sở thích, ngân sách, thời gian để tư vấn cụ thể
+- "Giá phòng bao nhiêu?" → Nếu không rõ địa điểm, hỏi lại + đưa ra bảng giá tham khảo
+- "Có gì vui ở Đà Lạt?" → Kết hợp khách sạn + điểm tham quan + lời khuyên thực tế
 
-PHONG CÁCH: Tự nhiên, thân thiện, chính xác, tập trung vào vị trí được hỏi`;
+LƯU Ý ĐỘC QUYỀN:
+- Nếu hỏi về địa điểm không có dữ liệu: Thừa nhận thẳng thắn + gợi ý liên hệ + đề xuất địa điểm khác
+- Nếu câu hỏi mơ hồ: Hỏi lại một cách thông minh để hiểu rõ nhu cầu
+- Luôn kết thúc bằng câu hỏi mở để khuyến khích tương tác tiếp
+
+HÃY TRẢ LỜI MỘT CÁCH THÔNG MINH, TỰ NHIÊN VÀ HỮU ÍCH!`;
 
   try {
     // Ưu tiên Google Gemini trước
@@ -141,459 +157,293 @@ PHONG CÁCH: Tự nhiên, thân thiện, chính xác, tập trung vào vị trí
       }
     }
 
-    // Nếu cả hai API đều không khả dụng, dùng Enhanced Logic
-    console.log('🔧 Using Enhanced Logic fallback...');
-    return generateEnhancedResponse(message, context);
+    // Nếu cả hai API đều không khả dụng, dùng Intelligent Fallback
+    console.log('🧠 Using Intelligent Fallback System...');
+    return generateIntelligentFallback(message, context);
 
   } catch (error) {
     console.error('AI API Error:', error);
-    return generateEnhancedResponse(message, context);
+    return generateIntelligentFallback(message, context);
   }
 }
 
-// Hàm tạo phản hồi thông minh hơn khi không có AI API
-function generateEnhancedResponse(message: string, context: any): string {
+// Hệ thống fallback thông minh - không dùng template cứng
+function generateIntelligentFallback(message: string, context: any): string {
+  const { hotels, vouchers, attractions, user, isLoggedIn } = context;
   const lowerMessage = message.toLowerCase();
-  const { hotels, vouchers, attractions, user, currentTime, isLoggedIn } = context;
   
-  // Xác định vị trí được hỏi và lọc dữ liệu
-  let targetLocation = '';
-  let locationHotels = hotels;
-  let locationAttractions = attractions;
+  // Phân tích ngữ cảnh và ý định một cách thông minh
+  const analysis = analyzeUserIntent(message, context);
+  
+  // Tạo phản hồi dựa trên phân tích thông minh
+  return generateContextualResponse(analysis, context);
+}
+
+// Phân tích ý định người dùng một cách thông minh
+function analyzeUserIntent(message: string, context: any) {
+  const lowerMessage = message.toLowerCase();
+  const { hotels, vouchers, attractions } = context;
+  
+  // Xác định vị trí
+  let location = null;
+  let locationData = { hotels: [], attractions: [] };
   
   if (lowerMessage.includes('đà lạt') || lowerMessage.includes('dalat')) {
-    targetLocation = 'Đà Lạt';
-    locationHotels = hotels.filter((h: any) => h.city.toLowerCase().includes('đà lạt'));
-    locationAttractions = attractions.filter((a: any) => a.city.toLowerCase().includes('đà lạt'));
+    location = 'Đà Lạt';
+    locationData.hotels = hotels.filter((h: any) => h.city.toLowerCase().includes('đà lạt'));
+    locationData.attractions = attractions.filter((a: any) => a.city.toLowerCase().includes('đà lạt'));
   } else if (lowerMessage.includes('hà nội') || lowerMessage.includes('hanoi')) {
-    targetLocation = 'Hà Nội';
-    locationHotels = hotels.filter((h: any) => h.city.toLowerCase().includes('hà nội'));
-    locationAttractions = attractions.filter((a: any) => a.city.toLowerCase().includes('hà nội'));
+    location = 'Hà Nội';
+    locationData.hotels = hotels.filter((h: any) => h.city.toLowerCase().includes('hà nội'));
+    locationData.attractions = attractions.filter((a: any) => a.city.toLowerCase().includes('hà nội'));
   } else if (lowerMessage.includes('nha trang')) {
-    targetLocation = 'Nha Trang';
-    locationHotels = hotels.filter((h: any) => h.city.toLowerCase().includes('nha trang'));
-    locationAttractions = attractions.filter((a: any) => a.city.toLowerCase().includes('nha trang'));
-  } else if (lowerMessage.includes('sài gòn') || lowerMessage.includes('hồ chí minh') || lowerMessage.includes('tp.hcm')) {
-    targetLocation = 'TP.HCM';
-    locationHotels = hotels.filter((h: any) => h.city.toLowerCase().includes('hồ chí minh') || h.city.toLowerCase().includes('sài gòn'));
-    locationAttractions = attractions.filter((a: any) => a.city.toLowerCase().includes('hồ chí minh') || a.city.toLowerCase().includes('sài gòn'));
+    location = 'Nha Trang';
+    locationData.hotels = hotels.filter((h: any) => h.city.toLowerCase().includes('nha trang'));
+    locationData.attractions = attractions.filter((a: any) => a.city.toLowerCase().includes('nha trang'));
   }
   
-  // Phân tích ý định của user thông minh hơn
-  const intents = {
-    greeting: ['xin chào', 'hello', 'hi', 'chào', 'hey'],
-    booking: ['đặt phòng', 'booking', 'book', 'đặt', 'thuê phòng'],
-    search: ['tìm', 'search', 'tìm kiếm', 'có gì', 'show'],
-    price: ['giá', 'bao nhiêu', 'cost', 'tiền', 'chi phí'],
-    location: ['đà lạt', 'hà nội', 'nha trang', 'sài gòn', 'hồ chí minh', 'tp.hcm'],
-    voucher: ['voucher', 'giảm giá', 'khuyến mãi', 'ưu đãi', 'discount'],
-    help: ['giúp', 'help', 'hỗ trợ', 'hướng dẫn', 'làm sao'],
-    thanks: ['cảm ơn', 'thank', 'thanks'],
-    goodbye: ['tạm biệt', 'bye', 'goodbye']
+  // Phân tích ý định chính
+  const intents = [];
+  
+  // Greeting
+  if (/^(xin chào|hello|hi|chào|hey)/.test(lowerMessage)) {
+    intents.push({ type: 'greeting', confidence: 0.9 });
+  }
+  
+  // Booking intent
+  if (/(đặt|book|thuê|reservation)/.test(lowerMessage)) {
+    intents.push({ type: 'booking', confidence: 0.8 });
+  }
+  
+  // Search intent
+  if (/(tìm|search|có|show|xem)/.test(lowerMessage)) {
+    intents.push({ type: 'search', confidence: 0.7 });
+  }
+  
+  // Price inquiry
+  if (/(giá|bao nhiêu|cost|tiền|chi phí)/.test(lowerMessage)) {
+    intents.push({ type: 'price', confidence: 0.8 });
+  }
+  
+  // Voucher inquiry
+  if (/(voucher|giảm giá|khuyến mãi|ưu đãi|discount)/.test(lowerMessage)) {
+    intents.push({ type: 'voucher', confidence: 0.8 });
+  }
+  
+  // Help request
+  if (/(giúp|help|hỗ trợ|hướng dẫn|làm sao)/.test(lowerMessage)) {
+    intents.push({ type: 'help', confidence: 0.7 });
+  }
+  
+  // Thanks
+  if (/(cảm ơn|thank|thanks)/.test(lowerMessage)) {
+    intents.push({ type: 'thanks', confidence: 0.9 });
+  }
+  
+  // Goodbye
+  if (/(tạm biệt|bye|goodbye)/.test(lowerMessage)) {
+    intents.push({ type: 'goodbye', confidence: 0.9 });
+  }
+  
+  // Determine primary intent
+  const primaryIntent = intents.length > 0 
+    ? intents.reduce((prev, current) => (prev.confidence > current.confidence) ? prev : current)
+    : { type: 'general', confidence: 0.5 };
+  
+  // Analyze complexity and context
+  const complexity = analyzeComplexity(message);
+  const entities = extractEntities(message, context);
+  
+  return {
+    message,
+    location,
+    locationData,
+    primaryIntent,
+    allIntents: intents,
+    complexity,
+    entities,
+    hasSpecificLocation: !!location,
+    isQuestion: message.includes('?') || /(gì|nào|sao|thế nào|như thế nào)/.test(lowerMessage),
+    isComparison: /(so sánh|khác|tốt hơn|rẻ hơn)/.test(lowerMessage)
   };
-
-  // Xác định ý định chính
-  let primaryIntent = 'general';
-  let confidence = 0;
-  
-  for (const [intent, keywords] of Object.entries(intents)) {
-    const matches = keywords.filter(keyword => lowerMessage.includes(keyword)).length;
-    if (matches > confidence) {
-      confidence = matches;
-      primaryIntent = intent;
-    }
-  }
-
-  // Tạo phản hồi dựa trên ý định và context
-  const greeting = isLoggedIn ? `👋 Xin chào ${user?.name || 'bạn'}!` : '👋 Xin chào!';
-  
-  switch (primaryIntent) {
-    case 'greeting':
-      return `${greeting} Tôi là AI Assistant của Lumina Stay - hệ thống đặt phòng khách sạn thông minh.
-
-🏨 **Hiện tại chúng tôi có:**
-- ${hotels.length} khách sạn chất lượng cao
-- ${vouchers.length} voucher giảm giá hấp dẫn
-- ${attractions.length} điểm vui chơi thú vị
-
-**🎯 Tôi có thể giúp bạn:**
-- Tìm kiếm khách sạn theo vị trí và ngân sách
-- Tư vấn lịch trình du lịch phù hợp
-- Hướng dẫn sử dụng voucher giảm giá
-- Hỗ trợ quy trình đặt phòng từ A-Z
-- Giải đáp mọi thắc mắc về dịch vụ
-
-${isLoggedIn ? '✨ **Đặc biệt:** Bạn đã đăng nhập, tôi có thể tư vấn cá nhân hóa dựa trên sở thích của bạn!' : '💡 **Gợi ý:** Đăng nhập để nhận tư vấn cá nhân hóa và ưu đãi độc quyền!'}
-
-Bạn muốn tìm hiểu về điều gì? Hãy nói với tôi! 😊`;
-
-    case 'booking':
-      return generateBookingResponse(targetLocation, { ...context, locationHotels, locationAttractions });
-      
-    case 'search':
-      return generateSearchResponse(targetLocation, message, { ...context, locationHotels, locationAttractions });
-      
-    case 'price':
-      return generatePriceResponse(targetLocation, { ...context, locationHotels, locationAttractions });
-      
-    case 'voucher':
-      return generateVoucherResponse(context);
-      
-    case 'help':
-      return generateHelpResponse(context);
-      
-    case 'thanks':
-      return `🙏 **Cảm ơn bạn rất nhiều!**
-
-Rất vui được hỗ trợ bạn hôm nay! 
-
-**🌟 Nếu cần thêm hỗ trợ:**
-- 💬 Tiếp tục chat với tôi bất cứ lúc nào
-- 🏨 Khám phá thêm khách sạn tuyệt vời
-- 🎫 Kiểm tra voucher mới nhất
-- 📞 Gọi hotline 24/7: 1900-1234
-
-**📝 Đánh giá dịch vụ:**
-Ý kiến của bạn rất quan trọng với chúng tôi! Hãy để lại đánh giá để giúp Lumina Stay ngày càng tốt hơn.
-
-Chúc bạn có những chuyến du lịch tuyệt vời! ✈️🏖️✨`;
-
-    case 'goodbye':
-      return `👋 **Tạm biệt và hẹn gặp lại!**
-
-Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của Lumina Stay!
-
-**🎁 Đừng quên:**
-- 🔔 Theo dõi để nhận thông báo ưu đãi mới
-- 💾 Lưu lại thông tin khách sạn yêu thích
-- 📱 Tải app Lumina Stay để đặt phòng nhanh hơn
-
-**📞 Liên hệ khi cần hỗ trợ:**
-- 💬 Chat với tôi 24/7 - luôn sẵn sàng!
-- 📞 Hotline: 1900-1234
-- 📧 Email: support@luminastay.com
-
-Hẹn sớm được phục vụ bạn lần nữa! 🌟💙`;
-
-    default:
-      return generateIntelligentResponse(message, { ...context, targetLocation, locationHotels, locationAttractions });
-  }
 }
 
-// Các hàm helper cho từng loại phản hồi
-function generateBookingResponse(location: string, context: any): string {
-  const { hotels, vouchers, isLoggedIn, locationHotels } = context;
+// Phân tích độ phức tạp của câu hỏi
+function analyzeComplexity(message: string): 'simple' | 'medium' | 'complex' {
+  const words = message.split(' ').length;
+  const hasMultipleQuestions = (message.match(/\?/g) || []).length > 1;
+  const hasConjunctions = /(và|hoặc|nhưng|tuy nhiên|ngoài ra)/.test(message.toLowerCase());
   
-  let response = `📋 **Hướng dẫn đặt phòng tại Lumina Stay:**
-
-**🔄 Quy trình đặt phòng (5 bước đơn giản):**
-1. **🔍 Chọn khách sạn** - Tìm theo vị trí hoặc duyệt danh sách
-2. **📅 Chọn ngày** - Nhận phòng và trả phòng
-3. **🛏️ Chọn phòng** - Loại phòng phù hợp với nhu cầu
-4. **📝 Điền thông tin** - Thông tin khách hàng và yêu cầu đặc biệt
-5. **💳 Thanh toán** - Online hoặc tại khách sạn
-
-${isLoggedIn ? '✅ **Ưu điểm khi đã đăng nhập:**\n- Thông tin được lưu tự động\n- Đặt phòng nhanh hơn 50%\n- Nhận ưu đãi độc quyền\n- Theo dõi lịch sử đặt phòng' : '💡 **Đăng nhập ngay để:**\n- Đặt phòng nhanh chóng\n- Lưu thông tin an toàn\n- Nhận ưu đãi đặc biệt'}`;
-
-  if (location && locationHotels) {
-    if (locationHotels.length > 0) {
-      response += `\n\n🏨 **Khách sạn tại ${location}:**\n${locationHotels.map((h: any) => `- **${h.name}** - Từ ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm (${h.rating}⭐)`).join('\n')}`;
-    } else {
-      response += `\n\n🏨 **Khách sạn tại ${location}:**\nHiện tại chưa có khách sạn nào tại ${location}. Vui lòng liên hệ để được tư vấn các điểm đến khác.`;
-    }
-  }
-
-  if (vouchers.length > 0) {
-    response += `\n\n🎁 **Voucher giảm giá hiện có:**\n${vouchers.slice(0, 3).map((v: any) => `- **${v.code}**: Giảm ${v.type === 'PERCENT' ? v.discount + '%' : v.discount.toLocaleString() + 'đ'}`).join('\n')}`;
-  }
-
-  response += `\n\n**💳 Phương thức thanh toán:**
-- Thẻ tín dụng/ghi nợ (Visa, Mastercard)
-- Chuyển khoản ngân hàng
-- Ví điện tử (Momo, ZaloPay, VNPay)
-- Thanh toán tại khách sạn
-
-**🛡️ Chính sách đặt phòng:**
-- Xác nhận ngay lập tức
-- Hủy miễn phí trước 24h
-- Hỗ trợ 24/7
-- Đảm bảo giá tốt nhất
-
-Bạn muốn đặt phòng ở đâu? Tôi sẽ hỗ trợ chi tiết! 🤝`;
-
-  return response;
+  if (words <= 5 && !hasMultipleQuestions) return 'simple';
+  if (words <= 15 && !hasConjunctions) return 'medium';
+  return 'complex';
 }
 
-function generateSearchResponse(location: string, message: string, context: any): string {
-  const { hotels, attractions, locationHotels, locationAttractions } = context;
+// Trích xuất thực thể từ tin nhắn
+function extractEntities(message: string, context: any) {
+  const entities = {
+    priceRange: null,
+    timeframe: null,
+    groupSize: null,
+    amenities: [],
+    dates: []
+  };
   
-  if (location) {
-    let response = `🔍 **Kết quả tìm kiếm cho "${location}":**\n\n`;
-    
-    if (locationHotels && locationHotels.length > 0) {
-      response += `🏨 **Khách sạn tại ${location}:**\n${locationHotels.map((h: any) => `- **${h.name}**\n  💰 Từ ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm | ⭐ ${h.rating}/5\n  📍 ${h.address}`).join('\n\n')}\n\n`;
-    }
-    
-    if (locationAttractions && locationAttractions.length > 0) {
-      response += `🎯 **Điểm tham quan tại ${location}:**\n${locationAttractions.map((a: any) => `- **${a.name}**${a.category ? ` (${a.category})` : ''}${a.address ? `\n  📍 ${a.address}` : ''}`).join('\n\n')}`;
-    }
-    
-    if ((!locationHotels || locationHotels.length === 0) && (!locationAttractions || locationAttractions.length === 0)) {
-      response += `Hiện tại chưa có thông tin về ${location} trong hệ thống.\n\n**🌟 Các điểm đến hiện có:**\n- 🌲 Đà Lạt - Thành phố ngàn hoa\n- 🏛️ Hà Nội - Văn hóa nghìn năm`;
-    } else if (!locationHotels || locationHotels.length === 0) {
-      response += `\n\n💡 **Lưu ý:** Hiện chưa có khách sạn tại ${location}. Vui lòng liên hệ để được tư vấn.`;
-    }
-    
-    return response;
+  // Extract price range
+  const priceMatch = message.match(/(\d+)\s*(triệu|tr|k|nghìn)/i);
+  if (priceMatch) {
+    const amount = parseInt(priceMatch[1]);
+    const unit = priceMatch[2].toLowerCase();
+    entities.priceRange = unit.includes('triệu') || unit.includes('tr') 
+      ? amount * 1000000 
+      : amount * 1000;
   }
   
-  return `🔍 **Tìm kiếm thông minh:**
-
-**🏨 Tất cả khách sạn (${hotels.length}):**
-${hotels.map((h: any) => `- **${h.name}** (${h.city}) - Từ ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm`).join('\n')}
-
-**🎯 Tìm kiếm theo vị trí:**
-- "Tìm khách sạn Đà Lạt"
-- "Khách sạn Hà Nội giá rẻ"
-
-**🔧 Bộ lọc thông minh:**
-- Theo giá: "khách sạn dưới 2 triệu"
-- Theo tiện ích: "khách sạn có hồ bơi"
-- Theo đánh giá: "khách sạn 4 sao"
-
-Bạn muốn tìm gì cụ thể? 🎯`;
-}
-
-function generatePriceResponse(location: string, context: any): string {
-  const { hotels, vouchers, locationHotels } = context;
+  // Extract group size
+  const groupMatch = message.match(/(\d+)\s*(người|khách)/i);
+  if (groupMatch) {
+    entities.groupSize = parseInt(groupMatch[1]);
+  }
   
-  let response = `💰 **Bảng giá khách sạn Lumina Stay:**\n\n`;
-  
-  if (location) {
-    if (locationHotels && locationHotels.length > 0) {
-      response += `🏨 **Giá khách sạn tại ${location}:**\n${locationHotels.map((h: any) => `- **${h.name}**: ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm (${h.rating}⭐)`).join('\n')}\n\n`;
-    } else {
-      response += `Hiện chưa có khách sạn tại ${location}.\n\n`;
+  // Extract timeframe
+  if (/(ngày|đêm|tuần|tháng)/.test(message)) {
+    const timeMatch = message.match(/(\d+)\s*(ngày|đêm|tuần|tháng)/i);
+    if (timeMatch) {
+      entities.timeframe = `${timeMatch[1]} ${timeMatch[2]}`;
     }
   }
   
-  if (hotels.length > 0 && !location) {
-    const sortedHotels = [...hotels].sort((a: any, b: any) => (a.rooms[0]?.price || 0) - (b.rooms[0]?.price || 0));
-    response += `📊 **Tất cả khách sạn (sắp xếp theo giá):**\n${sortedHotels.map((h: any, i: number) => `${i + 1}. **${h.name}** (${h.city}): ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm`).join('\n')}\n\n`;
-  }
-  
-  if (vouchers.length > 0) {
-    // Lọc voucher phù hợp với vị trí nếu có
-    let relevantVouchers = vouchers;
-    if (location) {
-      relevantVouchers = vouchers.filter((v: any) => {
-        const voucherCode = v.code.toLowerCase();
-        const locationLower = location.toLowerCase();
-        // Chỉ loại bỏ voucher có tên thành phố khác
-        if (locationLower.includes('đà lạt') && voucherCode.includes('hanoi')) return false;
-        if (locationLower.includes('hà nội') && voucherCode.includes('dalat')) return false;
-        if (locationLower.includes('nha trang') && (voucherCode.includes('dalat') || voucherCode.includes('hanoi'))) return false;
-        return true;
-      });
-    }
-    
-    if (relevantVouchers.length > 0) {
-      response += `🎁 **Voucher giảm giá:**\n${relevantVouchers.map((v: any) => `- **${v.code}**: Giảm ${v.type === 'PERCENT' ? v.discount + '%' : v.discount.toLocaleString() + 'đ'}${v.minSpend ? ` (đơn từ ${v.minSpend.toLocaleString()}đ)` : ''}`).join('\n')}\n\n`;
-    }
-  }
-  
-  response += `**💡 Tips tiết kiệm:**
-- 📅 Đặt trước 7-14 ngày để có giá tốt nhất
-- 🗓️ Tránh cuối tuần và ngày lễ
-- 🎫 Sử dụng voucher khi đặt phòng
-- 👥 Đặt phòng nhóm để được giảm giá
-- 🌙 Chọn phòng không view để tiết kiệm
-
-**🔒 Cam kết giá:**
-- Giá minh bạch, không phí ẩn
-- Đảm bảo giá tốt nhất thị trường
-- Hoàn tiền nếu tìm được giá rẻ hơn`;
-
-  return response;
-}
-
-function generateVoucherResponse(context: any): string {
-  const { vouchers } = context;
-  
-  if (vouchers.length === 0) {
-    return `🎫 **Về voucher giảm giá:**
-
-Hiện tại không có voucher nào đang có hiệu lực.
-
-**🔔 Cách nhận voucher mới:**
-- Đăng ký nhận thông báo qua email
-- Theo dõi fanpage Lumina Stay
-- Tham gia chương trình khách hàng thân thiết
-- Đặt phòng sớm để nhận ưu đãi đặc biệt
-
-**💰 Ưu đãi khác:**
-- Giá phòng cạnh tranh nhất thị trường
-- Chính sách hủy linh hoạt
-- Tích điểm đổi quà
-- Ưu đãi sinh nhật và kỷ niệm
-
-**📞 Liên hệ để biết thêm ưu đãi:**
-- Hotline: 1900-1234
-- Email: promo@luminastay.com
-
-Tôi sẽ thông báo ngay khi có voucher mới! 🔔`;
-  }
-  
-  return `🎁 **Voucher giảm giá hiện có:**
-
-${vouchers.map((v: any) => {
-    const discount = v.type === 'PERCENT' ? `${v.discount}%` : `${v.discount.toLocaleString()}đ`;
-    return `🎫 **${v.code}**
-- 💰 Giảm: ${discount}
-${v.minSpend ? `- 🛒 Áp dụng: Đơn từ ${v.minSpend.toLocaleString()}đ` : ''}
-- ⏰ Hạn sử dụng: ${new Date(v.endDate).toLocaleDateString('vi-VN')}
-${v.description ? `- 📝 ${v.description}` : ''}`;
-  }).join('\n\n')}
-
-**📋 Cách sử dụng voucher:**
-1. Chọn khách sạn và phòng yêu thích
-2. Nhập mã voucher tại bước thanh toán
-3. Hệ thống tự động tính giảm giá
-4. Kiểm tra lại tổng tiền và xác nhận
-
-**💡 Mẹo sử dụng hiệu quả:**
-- So sánh nhiều voucher để chọn tốt nhất
-- Chú ý điều kiện áp dụng và hạn sử dụng
-- Kết hợp với khuyến mãi khác nếu có
-- Đặt phòng sớm để đảm bảo có phòng
-
-Bạn muốn đặt phòng với voucher nào? 🏨`;
-}
-
-function generateHelpResponse(context: any): string {
-  const { isLoggedIn, user } = context;
-  
-  return `🆘 **Trung tâm hỗ trợ Lumina Stay:**
-
-${isLoggedIn ? `👋 Xin chào ${user?.name || 'bạn'}! Tôi sẵn sàng hỗ trợ bạn.` : '👋 Xin chào! Tôi là AI Assistant của Lumina Stay.'}
-
-**🎯 Tôi có thể giúp bạn:**
-- 🔍 Tìm kiếm và so sánh khách sạn
-- 💰 Tư vấn giá cả và voucher giảm giá
-- 📋 Hướng dẫn quy trình đặt phòng
-- 🗺️ Thông tin điểm du lịch và lịch trình
-- 🛠️ Giải quyết vấn đề kỹ thuật
-- 📞 Kết nối với nhân viên hỗ trợ
-
-**💬 Cách chat hiệu quả:**
-- Hỏi cụ thể: "Khách sạn Đà Lạt giá dưới 2 triệu"
-- Nói rõ nhu cầu: "Phòng 2 người, gần trung tâm"
-- Đừng ngại hỏi nhiều lần!
-
-**📞 Hỗ trợ trực tiếp:**
-- 🔥 Hotline 24/7: 1900-1234
-- 📧 Email: support@luminastay.com
-- 💬 Live chat: Tôi luôn ở đây!
-
-**🚨 Trường hợp khẩn cấp:**
-- Vấn đề đặt phòng: Gọi ngay 1900-1234
-- Sự cố tại khách sạn: Liên hệ lễ tân
-- Khiếu nại dịch vụ: Email complaint@luminastay.com
-
-Bạn cần hỗ trợ gì cụ thể? Hãy nói với tôi! 😊`;
-}
-
-function generateIntelligentResponse(message: string, context: any): string {
-  const { hotels, vouchers, attractions, isLoggedIn, targetLocation, locationHotels, locationAttractions } = context;
-  
-  // Nếu có vị trí cụ thể được hỏi
-  if (targetLocation) {
-    if ((!locationHotels || locationHotels.length === 0) && (!locationAttractions || locationAttractions.length === 0)) {
-      return `🤖 **Về "${message}"**
-
-Hiện tại chưa có thông tin về ${targetLocation} trong hệ thống của chúng tôi.
-
-**📞 Liên hệ tư vấn:**
-- Hotline: 1900-1234
-- Email: support@luminastay.com
-- Chat với tôi để biết thêm thông tin!
-
-**💡 Gợi ý:**
-- Hỏi về các điểm đến hiện có
-- Tìm hiểu về dịch vụ khác
-- Đăng ký nhận thông báo khi có khách sạn mới
-
-Tôi có thể giúp bạn tìm hiểu gì khác không? 🤔`;
-    }
-    
-    let response = `🤖 **Thông tin về ${targetLocation}:**\n\n`;
-    
-    if (locationHotels && locationHotels.length > 0) {
-      response += `🏨 **Khách sạn tại ${targetLocation}:**\n${locationHotels.map((h: any) => `- **${h.name}**\n  💰 ${h.rooms[0]?.price?.toLocaleString() || 0}đ/đêm | ⭐ ${h.rating}/5\n  📍 ${h.address}`).join('\n\n')}\n\n`;
-    }
-    
-    if (locationAttractions && locationAttractions.length > 0) {
-      response += `🎯 **Điểm tham quan tại ${targetLocation}:**\n${locationAttractions.map((a: any) => `- **${a.name}**${a.category ? ` (${a.category})` : ''}${a.address ? `\n  📍 ${a.address}` : ''}`).join('\n\n')}\n\n`;
-    }
-    
-    response += `**🎯 Gợi ý cho bạn:**
-- Đặt phòng ngay để có giá tốt
-- Xem chi tiết khách sạn
-- Tư vấn lịch trình du lịch
-- Kiểm tra voucher giảm giá
-
-${isLoggedIn ? '✨ **Đặc biệt:** Tôi có thể tư vấn cá nhân hóa dựa trên sở thích của bạn!' : '💡 **Gợi ý:** Đăng nhập để nhận tư vấn cá nhân hóa!'}
-
-Bạn muốn biết thêm gì về ${targetLocation}? 🤔`;
-    
-    return response;
-  }
-  
-  // Phân tích từ khóa trong tin nhắn cho trường hợp chung
-  const keywords = message.toLowerCase().split(' ').filter(word => word.length > 2);
-  const relevantKeywords = keywords.filter(word => 
-    ['khách', 'sạn', 'phòng', 'đặt', 'giá', 'voucher', 'du', 'lịch', 'tham', 'quan'].includes(word)
+  // Extract amenities
+  const amenityKeywords = ['hồ bơi', 'spa', 'gym', 'wifi', 'bãi đậu xe', 'nhà hàng', 'bar'];
+  entities.amenities = amenityKeywords.filter(amenity => 
+    message.toLowerCase().includes(amenity)
   );
   
-  if (relevantKeywords.length === 0) {
-    return `🤖 **Tôi chưa hiểu rõ câu hỏi "${message}"**
+  return entities;
+}
 
-**🎯 Tôi chuyên hỗ trợ về:**
-- 🏨 Khách sạn và đặt phòng
-- 💰 Giá cả và voucher giảm giá
-- 🗺️ Du lịch và điểm tham quan
-- 📋 Quy trình booking
+// Tạo phản hồi dựa trên ngữ cảnh
+function generateContextualResponse(analysis: any, context: any): string {
+  const { message, location, locationData, primaryIntent, complexity, entities, isQuestion } = analysis;
+  const { hotels, vouchers, attractions, user, isLoggedIn } = context;
+  
+  // Xử lý theo ý định chính
+  switch (primaryIntent.type) {
+    case 'greeting':
+      return generateSmartGreeting(context, analysis);
+    
+    case 'booking':
+      return generateSmartBookingResponse(context, analysis);
+    
+    case 'search':
+      return generateSmartSearchResponse(context, analysis);
+    
+    case 'price':
+      return generateSmartPriceResponse(context, analysis);
+    
+    case 'voucher':
+      return generateSmartVoucherResponse(context, analysis);
+    
+    case 'help':
+      return generateSmartHelpResponse(context, analysis);
+    
+    case 'thanks':
+      return generateSmartThanksResponse(context, analysis);
+    
+    case 'goodbye':
+      return generateSmartGoodbyeResponse(context, analysis);
+    
+    default:
+      return generateSmartGeneralResponse(context, analysis);
+  }
+}
 
-**📊 Thông tin hiện có:**
-- ${hotels.length} khách sạn chất lượng
-- ${vouchers.length} voucher giảm giá
-- ${attractions.length} điểm vui chơi
-
-**💡 Thử hỏi như này:**
-- "Khách sạn Đà Lạt có gì?"
-- "Voucher giảm giá tháng này"
-- "Cách đặt phòng như thế nào?"
-- "Địa điểm du lịch hot nhất"
-
-Hãy hỏi cụ thể để tôi hỗ trợ tốt nhất! 🚀`;
+// Các hàm tạo phản hồi thông minh
+function generateSmartGreeting(context: any, analysis: any): string {
+  const { user, isLoggedIn, hotels, vouchers } = context;
+  const greeting = isLoggedIn ? `Chào ${user?.name || 'bạn'}! 👋` : 'Xin chào! 👋';
+  
+  const responses = [
+    `${greeting} Tôi là AI Assistant của Lumina Stay. Tôi có thể giúp bạn tìm khách sạn tuyệt vời và lên kế hoạch du lịch hoàn hảo!`,
+    `${greeting} Rất vui được gặp bạn! Tôi ở đây để hỗ trợ bạn khám phá ${hotels.length} khách sạn chất lượng cao của chúng tôi.`,
+    `${greeting} Chào mừng đến với Lumina Stay! Hôm nay bạn muốn khám phá điểm đến nào?`
+  ];
+  
+  let response = responses[Math.floor(Math.random() * responses.length)];
+  
+  if (vouchers.length > 0) {
+    response += ` 🎁 Đặc biệt hôm nay có ${vouchers.length} voucher giảm giá hấp dẫn đang chờ bạn!`;
   }
   
-  return `🤖 **Tôi hiểu bạn quan tâm về "${message}"**
+  response += `\n\nBạn có kế hoạch du lịch gì không? Tôi có thể tư vấn về khách sạn, địa điểm tham quan, hoặc giúp bạn tìm ưu đãi tốt nhất! 😊`;
+  
+  return response;
+}
 
-**📋 Thông tin liên quan:**
-- 🏨 ${hotels.length} khách sạn: ${hotels.slice(0, 2).map((h: any) => h.name).join(', ')}${hotels.length > 2 ? '...' : ''}
-- 🎫 ${vouchers.length} voucher hiện có
-- 📍 ${attractions.length} điểm tham quan
-
-**🎯 Gợi ý cho bạn:**
-- Hỏi cụ thể về thành phố: "Khách sạn Đà Lạt"
-- Tìm theo giá: "Phòng dưới 2 triệu"
-- Hỏi về dịch vụ: "Cách đặt phòng"
-- Tư vấn lịch trình: "Du lịch 3 ngày 2 đêm"
-
-${isLoggedIn ? '✨ **Đặc biệt:** Tôi có thể tư vấn cá nhân hóa dựa trên sở thích của bạn!' : '💡 **Gợi ý:** Đăng nhập để nhận tư vấn cá nhân hóa!'}
-
-Bạn muốn tìm hiểu điều gì cụ thể? 🤔`;
+function generateSmartBookingResponse(context: any, analysis: any): string {
+  const { location, locationData, entities } = analysis;
+  const { isLoggedIn } = context;
+  
+  let response = '';
+  
+  if (location) {
+    if (locationData.hotels.length > 0) {
+      response = `Tuyệt vời! Bạn muốn đặt phòng tại ${location}. `;
+      response += `Chúng tôi có ${locationData.hotels.length} khách sạn tại đây:\n\n`;
+      
+      locationData.hotels.forEach((hotel: any, index: number) => {
+        response += `${index + 1}. **${hotel.name}**\n`;
+        response += `   💰 Từ ${hotel.rooms[0]?.price?.toLocaleString() || 0}đ/đêm\n`;
+        response += `   ⭐ ${hotel.rating}/5 sao\n`;
+        response += `   📍 ${hotel.address}\n\n`;
+      });
+      
+      if (entities.priceRange) {
+        const suitableHotels = locationData.hotels.filter((h: any) => 
+          (h.rooms[0]?.price || 0) <= entities.priceRange
+        );
+        if (suitableHotels.length > 0) {
+          response += `💡 Dựa trên ngân sách ${entities.priceRange.toLocaleString()}đ của bạn, tôi đặc biệt gợi ý ${suitableHotels[0].name}!\n\n`;
+        }
+      }
+      
+      response += `Để đặt phòng, bạn chỉ cần:\n`;
+      response += `1. Chọn khách sạn yêu thích\n`;
+      response += `2. Chọn ngày nhận/trả phòng\n`;
+      response += `3. Điền thông tin và thanh toán\n\n`;
+      
+      if (!isLoggedIn) {
+        response += `💡 **Tip**: Đăng nhập để đặt phòng nhanh hơn và nhận ưu đãi độc quyền!\n\n`;
+      }
+      
+      response += `Bạn muốn tôi hỗ trợ thêm gì về việc đặt phòng tại ${location}?`;
+    } else {
+      response = `Rất tiếc, hiện tại chúng tôi chưa có khách sạn tại ${location}. `;
+      response += `Nhưng đừng lo! Tôi có thể gợi ý những điểm đến tuyệt vời khác:\n\n`;
+      response += `🌲 **Đà Lạt** - Thành phố ngàn hoa với khí hậu mát mẻ\n`;
+      response += `🏛️ **Hà Nội** - Thủ đô với văn hóa nghìn năm\n\n`;
+      response += `Hoặc bạn có thể để lại thông tin, chúng tôi sẽ thông báo ngay khi có khách sạn tại ${location}!`;
+    }
+  } else {
+    response = `Tôi sẵn sàng hỗ trợ bạn đặt phòng! `;
+    
+    if (entities.groupSize) {
+      response += `Tôi hiểu bạn cần phòng cho ${entities.groupSize} người. `;
+    }
+    
+    if (entities.timeframe) {
+      response += `Và bạn dự định ở ${entities.timeframe}. `;
+    }
+    
+    response += `Để tư vấn chính xác nhất, bạn có thể cho tôi biết:\n\n`;
+    response += `📍 Bạn muốn đi đâu?\n`;
+    response += `📅 Khi nào bạn muốn đi?\n`;
+    response += `💰 Ngân sách dự kiến của bạn?\n`;
+    response += `👥 Bao nhiêu người đi cùng?\n\n`;
+    response += `Với thông tin này, tôi sẽ tìm được khách sạn hoàn hảo cho chuyến đi của bạn! 🎯`;
+  }
+  
+  return response;
 }
 
 export async function POST(request: NextRequest) {
@@ -686,4 +536,454 @@ Tôi sẽ sớm trở lại để hỗ trợ bạn tốt hơn! 🚀✨`
       { status: 500 }
     );
   }
+}
+
+function generateSmartSearchResponse(context: any, analysis: any): string {
+  const { location, locationData, entities, complexity } = analysis;
+  const { hotels, attractions } = context;
+  
+  if (location) {
+    let response = `🔍 Tìm kiếm về ${location}:\n\n`;
+    
+    if (locationData.hotels.length > 0) {
+      response += `🏨 **Khách sạn tại ${location}:**\n`;
+      locationData.hotels.forEach((hotel: any, index: number) => {
+        response += `${index + 1}. **${hotel.name}**\n`;
+        response += `   💰 ${hotel.rooms[0]?.price?.toLocaleString() || 0}đ/đêm | ⭐ ${hotel.rating}/5\n`;
+        response += `   📍 ${hotel.address}\n\n`;
+      });
+    }
+    
+    if (locationData.attractions.length > 0) {
+      response += `🎯 **Điểm tham quan tại ${location}:**\n`;
+      locationData.attractions.forEach((attraction: any, index: number) => {
+        response += `${index + 1}. **${attraction.name}**`;
+        if (attraction.category) response += ` (${attraction.category})`;
+        if (attraction.address) response += `\n   📍 ${attraction.address}`;
+        response += '\n\n';
+      });
+    }
+    
+    if (locationData.hotels.length === 0 && locationData.attractions.length === 0) {
+      response += `Rất tiếc, hiện tại chưa có thông tin về ${location}.\n\n`;
+      response += `💡 **Gợi ý khác:**\n`;
+      response += `- 🌲 Đà Lạt: Thành phố ngàn hoa, khí hậu mát mẻ\n`;
+      response += `- 🏛️ Hà Nội: Thủ đô với văn hóa nghìn năm\n\n`;
+      response += `Hoặc bạn có thể liên hệ để được tư vấn thêm!`;
+    } else {
+      response += `Bạn muốn biết thêm chi tiết về khách sạn hoặc điểm tham quan nào? 🤔`;
+    }
+    
+    return response;
+  }
+  
+  // Tìm kiếm chung
+  let response = `🔍 **Kết quả tìm kiếm:**\n\n`;
+  
+  if (entities.priceRange) {
+    const affordableHotels = hotels.filter((h: any) => 
+      (h.rooms[0]?.price || 0) <= entities.priceRange
+    );
+    if (affordableHotels.length > 0) {
+      response += `💰 **Khách sạn trong ngân sách ${entities.priceRange.toLocaleString()}đ:**\n`;
+      affordableHotels.slice(0, 3).forEach((hotel: any, index: number) => {
+        response += `${index + 1}. ${hotel.name} (${hotel.city}) - ${hotel.rooms[0]?.price?.toLocaleString() || 0}đ/đêm\n`;
+      });
+      response += '\n';
+    }
+  }
+  
+  if (entities.amenities.length > 0) {
+    response += `🏊 **Tìm kiếm theo tiện ích:** ${entities.amenities.join(', ')}\n`;
+    response += `Tôi sẽ ghi nhận yêu cầu này để tư vấn phù hợp nhất!\n\n`;
+  }
+  
+  response += `📊 **Tổng quan hệ thống:**\n`;
+  response += `- 🏨 ${hotels.length} khách sạn chất lượng\n`;
+  response += `- 📍 ${attractions.length} điểm tham quan\n`;
+  response += `- 🎯 Phủ sóng các thành phố lớn\n\n`;
+  
+  response += `💡 **Gợi ý tìm kiếm hiệu quả:**\n`;
+  response += `- "Khách sạn Đà Lạt dưới 2 triệu"\n`;
+  response += `- "Phòng 4 người gần trung tâm"\n`;
+  response += `- "Du lịch Hà Nội 3 ngày 2 đêm"\n\n`;
+  
+  response += `Bạn muốn tìm kiếm cụ thể hơn không? 🎯`;
+  
+  return response;
+}
+
+function generateSmartPriceResponse(context: any, analysis: any): string {
+  const { location, locationData, entities } = analysis;
+  const { hotels, vouchers } = context;
+  
+  let response = `💰 **Thông tin giá cả:**\n\n`;
+  
+  if (location) {
+    if (locationData.hotels.length > 0) {
+      response += `🏨 **Bảng giá khách sạn tại ${location}:**\n`;
+      const sortedHotels = [...locationData.hotels].sort((a: any, b: any) => 
+        (a.rooms[0]?.price || 0) - (b.rooms[0]?.price || 0)
+      );
+      
+      sortedHotels.forEach((hotel: any, index: number) => {
+        const price = hotel.rooms[0]?.price || 0;
+        response += `${index + 1}. **${hotel.name}**\n`;
+        response += `   💵 ${price.toLocaleString()}đ/đêm | ⭐ ${hotel.rating}/5\n`;
+        
+        if (entities.priceRange && price <= entities.priceRange) {
+          response += `   ✅ Phù hợp ngân sách của bạn!\n`;
+        }
+        response += '\n';
+      });
+      
+      const avgPrice = sortedHotels.reduce((sum: number, h: any) => 
+        sum + (h.rooms[0]?.price || 0), 0) / sortedHotels.length;
+      response += `📊 **Giá trung bình tại ${location}:** ${avgPrice.toLocaleString()}đ/đêm\n\n`;
+    }
+  } else {
+    // Hiển thị giá tất cả khách sạn
+    const sortedHotels = [...hotels].sort((a: any, b: any) => 
+      (a.rooms[0]?.price || 0) - (b.rooms[0]?.price || 0)
+    );
+    
+    response += `🏨 **Bảng giá tất cả khách sạn:**\n`;
+    sortedHotels.forEach((hotel: any, index: number) => {
+      response += `${index + 1}. ${hotel.name} (${hotel.city}) - ${hotel.rooms[0]?.price?.toLocaleString() || 0}đ/đêm\n`;
+    });
+    response += '\n';
+  }
+  
+  // Hiển thị voucher phù hợp
+  if (vouchers.length > 0) {
+    let relevantVouchers = vouchers;
+    if (location) {
+      relevantVouchers = vouchers.filter((v: any) => {
+        const code = v.code.toLowerCase();
+        const loc = location.toLowerCase();
+        return !((loc.includes('đà lạt') && code.includes('hanoi')) ||
+                (loc.includes('hà nội') && code.includes('dalat')));
+      });
+    }
+    
+    if (relevantVouchers.length > 0) {
+      response += `🎁 **Voucher giảm giá có thể áp dụng:**\n`;
+      relevantVouchers.slice(0, 3).forEach((voucher: any) => {
+        const discount = voucher.type === 'PERCENT' 
+          ? `${voucher.discount}%` 
+          : `${voucher.discount.toLocaleString()}đ`;
+        response += `- **${voucher.code}**: Giảm ${discount}`;
+        if (voucher.minSpend) {
+          response += ` (đơn từ ${voucher.minSpend.toLocaleString()}đ)`;
+        }
+        response += '\n';
+      });
+      response += '\n';
+    }
+  }
+  
+  response += `💡 **Mẹo tiết kiệm chi phí:**\n`;
+  response += `- 📅 Đặt trước 1-2 tuần để có giá tốt\n`;
+  response += `- 🗓️ Tránh cuối tuần và ngày lễ\n`;
+  response += `- 🎫 Sử dụng voucher khi thanh toán\n`;
+  response += `- 👥 Đặt phòng nhóm để được ưu đãi\n\n`;
+  
+  if (entities.priceRange) {
+    response += `🎯 **Dựa trên ngân sách ${entities.priceRange.toLocaleString()}đ của bạn:**\n`;
+    const suitableHotels = (location ? locationData.hotels : hotels).filter((h: any) => 
+      (h.rooms[0]?.price || 0) <= entities.priceRange
+    );
+    
+    if (suitableHotels.length > 0) {
+      response += `Có ${suitableHotels.length} khách sạn phù hợp. Tôi đặc biệt gợi ý **${suitableHotels[0].name}**!\n\n`;
+    } else {
+      response += `Hiện tại chưa có khách sạn trong tầm giá này. Bạn có thể tăng ngân sách hoặc chờ khuyến mãi!\n\n`;
+    }
+  }
+  
+  response += `Bạn muốn tôi tư vấn cụ thể cho ngân sách nào? 💭`;
+  
+  return response;
+}
+
+function generateSmartVoucherResponse(context: any, analysis: any): string {
+  const { vouchers } = context;
+  const { location } = analysis;
+  
+  if (vouchers.length === 0) {
+    return `🎫 **Về voucher giảm giá:**\n\nHiện tại không có voucher nào đang có hiệu lực.\n\n**🔔 Cách nhận voucher mới:**\n- Đăng ký nhận thông báo qua email\n- Theo dõi fanpage Lumina Stay\n- Tham gia chương trình khách hàng thân thiết\n- Đặt phòng sớm để nhận ưu đãi đặc biệt\n\n**📞 Liên hệ:** 1900-1234 để biết thêm ưu đãi!`;
+  }
+  
+  let response = `🎁 **Voucher giảm giá hiện có:**\n\n`;
+  
+  // Lọc voucher theo vị trí nếu có
+  let relevantVouchers = vouchers;
+  if (location) {
+    relevantVouchers = vouchers.filter((v: any) => {
+      const code = v.code.toLowerCase();
+      const loc = location.toLowerCase();
+      return !((loc.includes('đà lạt') && code.includes('hanoi')) ||
+              (loc.includes('hà nội') && code.includes('dalat')));
+    });
+    
+    if (relevantVouchers.length < vouchers.length) {
+      response += `🎯 **Voucher áp dụng cho ${location}:**\n\n`;
+    }
+  }
+  
+  relevantVouchers.forEach((voucher: any, index: number) => {
+    const discount = voucher.type === 'PERCENT' 
+      ? `${voucher.discount}%` 
+      : `${voucher.discount.toLocaleString()}đ`;
+    
+    response += `${index + 1}. **${voucher.code}**\n`;
+    response += `   💰 Giảm: ${discount}\n`;
+    if (voucher.minSpend) {
+      response += `   🛒 Điều kiện: Đơn từ ${voucher.minSpend.toLocaleString()}đ\n`;
+    }
+    response += `   ⏰ Hạn sử dụng: ${new Date(voucher.endDate).toLocaleDateString('vi-VN')}\n`;
+    if (voucher.description) {
+      response += `   📝 ${voucher.description}\n`;
+    }
+    response += '\n';
+  });
+  
+  response += `**📋 Cách sử dụng voucher:**\n`;
+  response += `1. Chọn khách sạn và phòng yêu thích\n`;
+  response += `2. Nhập mã voucher tại bước thanh toán\n`;
+  response += `3. Hệ thống tự động tính giảm giá\n`;
+  response += `4. Kiểm tra và xác nhận đặt phòng\n\n`;
+  
+  response += `💡 **Mẹo sử dụng hiệu quả:**\n`;
+  response += `- So sánh nhiều voucher để chọn tốt nhất\n`;
+  response += `- Chú ý điều kiện và hạn sử dụng\n`;
+  response += `- Kết hợp với khuyến mãi khác nếu có\n\n`;
+  
+  response += `Bạn muốn đặt phòng với voucher nào? Tôi sẽ hướng dẫn chi tiết! 🏨`;
+  
+  return response;
+}
+
+function generateSmartHelpResponse(context: any, analysis: any): string {
+  const { isLoggedIn, user } = context;
+  const { complexity, entities } = analysis;
+  
+  let response = `🆘 **Trung tâm hỗ trợ Lumina Stay:**\n\n`;
+  
+  if (isLoggedIn) {
+    response += `👋 Xin chào ${user?.name || 'bạn'}! Tôi sẵn sàng hỗ trợ bạn.\n\n`;
+  } else {
+    response += `👋 Xin chào! Tôi là AI Assistant của Lumina Stay.\n\n`;
+  }
+  
+  // Tùy chỉnh hỗ trợ dựa trên độ phức tạp
+  if (complexity === 'complex') {
+    response += `🎯 **Hỗ trợ chuyên sâu:**\n`;
+    response += `- 📞 Kết nối với chuyên viên tư vấn: 1900-1234\n`;
+    response += `- 📧 Email chi tiết: support@luminastay.com\n`;
+    response += `- 💬 Chat với tôi để phân tích từng bước\n\n`;
+  }
+  
+  response += `**🎯 Tôi có thể giúp bạn:**\n`;
+  response += `- 🔍 Tìm kiếm và so sánh khách sạn\n`;
+  response += `- 💰 Tư vấn giá cả và voucher giảm giá\n`;
+  response += `- 📋 Hướng dẫn quy trình đặt phòng\n`;
+  response += `- 🗺️ Thông tin điểm du lịch và lịch trình\n`;
+  response += `- 🛠️ Giải quyết vấn đề kỹ thuật\n\n`;
+  
+  if (entities.priceRange || entities.groupSize || entities.timeframe) {
+    response += `**🎯 Dựa trên thông tin bạn cung cấp:**\n`;
+    if (entities.priceRange) {
+      response += `- 💰 Ngân sách: ${entities.priceRange.toLocaleString()}đ\n`;
+    }
+    if (entities.groupSize) {
+      response += `- 👥 Số người: ${entities.groupSize}\n`;
+    }
+    if (entities.timeframe) {
+      response += `- ⏰ Thời gian: ${entities.timeframe}\n`;
+    }
+    response += `Tôi sẽ tư vấn cá nhân hóa cho bạn!\n\n`;
+  }
+  
+  response += `**💬 Cách chat hiệu quả:**\n`;
+  response += `- Hỏi cụ thể: "Khách sạn Đà Lạt giá dưới 2 triệu"\n`;
+  response += `- Nói rõ nhu cầu: "Phòng 2 người, gần trung tâm"\n`;
+  response += `- Đừng ngại hỏi nhiều lần!\n\n`;
+  
+  response += `**📞 Hỗ trợ trực tiếp 24/7:**\n`;
+  response += `- 🔥 Hotline: 1900-1234\n`;
+  response += `- 📧 Email: support@luminastay.com\n`;
+  response += `- 💬 Live chat: Tôi luôn ở đây!\n\n`;
+  
+  response += `Bạn cần hỗ trợ gì cụ thể? Hãy nói với tôi! 😊`;
+  
+  return response;
+}
+
+function generateSmartThanksResponse(context: any, analysis: any): string {
+  const { isLoggedIn, user, vouchers } = context;
+  
+  let response = `🙏 **Cảm ơn bạn rất nhiều!**\n\n`;
+  
+  if (isLoggedIn) {
+    response += `Rất vui được hỗ trợ ${user?.name || 'bạn'} hôm nay!\n\n`;
+  } else {
+    response += `Rất vui được hỗ trợ bạn hôm nay!\n\n`;
+  }
+  
+  response += `**🌟 Nếu cần thêm hỗ trợ:**\n`;
+  response += `- 💬 Tiếp tục chat với tôi bất cứ lúc nào\n`;
+  response += `- 🏨 Khám phá thêm khách sạn tuyệt vời\n`;
+  
+  if (vouchers.length > 0) {
+    response += `- 🎫 Sử dụng ${vouchers.length} voucher đang có hiệu lực\n`;
+  }
+  
+  response += `- 📞 Gọi hotline 24/7: 1900-1234\n\n`;
+  
+  if (!isLoggedIn) {
+    response += `💡 **Gợi ý:** Đăng ký tài khoản để nhận ưu đãi độc quyền và đặt phòng nhanh hơn!\n\n`;
+  }
+  
+  response += `**📝 Đánh giá dịch vụ:**\n`;
+  response += `Ý kiến của bạn rất quan trọng! Hãy để lại đánh giá để giúp Lumina Stay ngày càng tốt hơn.\n\n`;
+  
+  response += `Chúc bạn có những chuyến du lịch tuyệt vời! ✈️🏖️✨`;
+  
+  return response;
+}
+
+function generateSmartGoodbyeResponse(context: any, analysis: any): string {
+  const { isLoggedIn, user, hotels } = context;
+  
+  let response = `👋 **Tạm biệt và hẹn gặp lại!**\n\n`;
+  
+  if (isLoggedIn) {
+    response += `Cảm ơn ${user?.name || 'bạn'} đã tin tưởng Lumina Stay!\n\n`;
+  } else {
+    response += `Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ của Lumina Stay!\n\n`;
+  }
+  
+  response += `**🎁 Đừng quên:**\n`;
+  response += `- 🔔 Theo dõi để nhận thông báo ưu đãi mới\n`;
+  response += `- 💾 Lưu lại thông tin khách sạn yêu thích\n`;
+  response += `- 📱 Bookmark trang web để đặt phòng nhanh hơn\n\n`;
+  
+  if (hotels.length > 0) {
+    response += `**🏨 Nhắc nhở:**\n`;
+    response += `Chúng tôi có ${hotels.length} khách sạn chất lượng cao đang chờ bạn khám phá!\n\n`;
+  }
+  
+  response += `**📞 Liên hệ khi cần hỗ trợ:**\n`;
+  response += `- 💬 Chat với tôi 24/7 - luôn sẵn sàng!\n`;
+  response += `- 📞 Hotline: 1900-1234\n`;
+  response += `- 📧 Email: support@luminastay.com\n\n`;
+  
+  response += `Hẹn sớm được phục vụ bạn lần nữa! 🌟💙`;
+  
+  return response;
+}
+
+function generateSmartGeneralResponse(context: any, analysis: any): string {
+  const { message, location, entities, isQuestion, isComparison, complexity } = analysis;
+  const { hotels, vouchers, attractions, isLoggedIn } = context;
+  
+  let response = `🤖 **Tôi hiểu bạn quan tâm về "${message}"**\n\n`;
+  
+  // Xử lý câu hỏi so sánh
+  if (isComparison) {
+    response += `📊 **So sánh thông tin:**\n`;
+    if (hotels.length > 1) {
+      const sortedHotels = [...hotels].sort((a: any, b: any) => 
+        (b.rating || 0) - (a.rating || 0)
+      );
+      response += `🏆 **Top khách sạn theo đánh giá:**\n`;
+      sortedHotels.slice(0, 3).forEach((hotel: any, index: number) => {
+        response += `${index + 1}. ${hotel.name} (${hotel.city}) - ${hotel.rating}⭐\n`;
+      });
+      response += '\n';
+    }
+  }
+  
+  // Xử lý câu hỏi phức tạp
+  if (complexity === 'complex') {
+    response += `🧠 **Phân tích câu hỏi phức tạp:**\n`;
+    response += `Tôi nhận thấy bạn có nhiều yêu cầu. Để tư vấn chính xác nhất, hãy chia nhỏ câu hỏi:\n\n`;
+    
+    if (entities.priceRange) {
+      response += `💰 **Về ngân sách ${entities.priceRange.toLocaleString()}đ:**\n`;
+      const affordableHotels = hotels.filter((h: any) => 
+        (h.rooms[0]?.price || 0) <= entities.priceRange
+      );
+      response += `Có ${affordableHotels.length} khách sạn phù hợp.\n\n`;
+    }
+    
+    if (entities.groupSize) {
+      response += `👥 **Về nhóm ${entities.groupSize} người:**\n`;
+      response += `Tôi sẽ gợi ý loại phòng phù hợp và có thể đặt nhiều phòng nếu cần.\n\n`;
+    }
+    
+    response += `Bạn muốn tôi tư vấn từng vấn đề một không? 🎯`;
+    return response;
+  }
+  
+  // Phản hồi chung thông minh
+  response += `**📋 Thông tin liên quan:**\n`;
+  
+  if (location) {
+    response += `📍 **Về ${location}:** `;
+    const locationHotels = hotels.filter((h: any) => 
+      h.city.toLowerCase().includes(location.toLowerCase())
+    );
+    const locationAttractions = attractions.filter((a: any) => 
+      a.city.toLowerCase().includes(location.toLowerCase())
+    );
+    
+    if (locationHotels.length > 0 || locationAttractions.length > 0) {
+      response += `Có ${locationHotels.length} khách sạn và ${locationAttractions.length} điểm tham quan\n`;
+    } else {
+      response += `Hiện chưa có thông tin trong hệ thống\n`;
+    }
+  }
+  
+  response += `- 🏨 ${hotels.length} khách sạn chất lượng\n`;
+  response += `- 🎫 ${vouchers.length} voucher giảm giá\n`;
+  response += `- 📍 ${attractions.length} điểm tham quan\n\n`;
+  
+  // Gợi ý thông minh dựa trên entities
+  response += `**🎯 Gợi ý cho bạn:**\n`;
+  
+  if (entities.priceRange) {
+    response += `- Tìm khách sạn trong ngân sách ${entities.priceRange.toLocaleString()}đ\n`;
+  } else {
+    response += `- Hỏi cụ thể về thành phố: "Khách sạn Đà Lạt"\n`;
+  }
+  
+  if (entities.timeframe) {
+    response += `- Lên kế hoạch cho chuyến đi ${entities.timeframe}\n`;
+  } else {
+    response += `- Tìm theo giá: "Phòng dưới 2 triệu"\n`;
+  }
+  
+  if (entities.groupSize) {
+    response += `- Tư vấn phòng cho ${entities.groupSize} người\n`;
+  } else {
+    response += `- Hỏi về dịch vụ: "Cách đặt phòng"\n`;
+  }
+  
+  response += `- Tư vấn lịch trình: "Du lịch 3 ngày 2 đêm"\n\n`;
+  
+  if (isLoggedIn) {
+    response += `✨ **Đặc biệt:** Tôi có thể tư vấn cá nhân hóa dựa trên sở thích của bạn!\n\n`;
+  } else {
+    response += `💡 **Gợi ý:** Đăng nhập để nhận tư vấn cá nhân hóa!\n\n`;
+  }
+  
+  if (isQuestion) {
+    response += `Bạn muốn tôi giải đáp cụ thể điều gì? 🤔`;
+  } else {
+    response += `Tôi có thể hỗ trợ bạn thêm gì không? 😊`;
+  }
+  
+  return response;
 }
