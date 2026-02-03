@@ -55,11 +55,43 @@ export async function deleteHotel(hotelId: string) {
   }
 
   try {
-    await prisma.hotel.delete({ where: { id: hotelId } });
+    // Xóa theo thứ tự để tránh foreign key constraints
+    await prisma.$transaction(async (tx) => {
+      // 1. Xóa tất cả payments liên quan đến bookings của hotel
+      await tx.payment.deleteMany({
+        where: {
+          booking: { hotelId }
+        }
+      });
+
+      // 2. Xóa tất cả bookings của hotel
+      await tx.booking.deleteMany({
+        where: { hotelId }
+      });
+
+      // 3. Xóa tất cả room inventories của hotel
+      await tx.roomInventory.deleteMany({
+        where: {
+          room: { hotelId }
+        }
+      });
+
+      // 4. Xóa tất cả rooms của hotel (cascade sẽ tự động xử lý)
+      await tx.room.deleteMany({
+        where: { hotelId }
+      });
+
+      // 5. Cuối cùng xóa hotel
+      await tx.hotel.delete({
+        where: { id: hotelId }
+      });
+    });
+
     revalidatePath("/admin/hotels");
     return { success: true };
   } catch (error) {
-    return { error: "Không thể xóa (Có thể do còn booking liên quan)." };
+    console.error("❌ Delete hotel error:", error);
+    return { error: "Không thể xóa khách sạn. Vui lòng thử lại." };
   }
 }
 
