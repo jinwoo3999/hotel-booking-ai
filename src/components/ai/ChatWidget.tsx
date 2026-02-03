@@ -29,6 +29,7 @@ export default function ChatWidget() {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [processedActions, setProcessedActions] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -176,16 +177,25 @@ export default function ChatWidget() {
   // Auto-trigger booking actions from AI responses
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage && !lastMessage.isUser && lastMessage.actions) {
-      const bookingAction = lastMessage.actions.find(action => action.type === 'book_room');
-      if (bookingAction) {
+    if (lastMessage && !lastMessage.isUser && lastMessage.actions && !isLoading) {
+      const bookingAction = lastMessage.actions.find((action: any) => action.type === 'book_room');
+      
+      // Check if this action has already been processed
+      const actionKey = `${lastMessage.id}-book_room`;
+      
+      if (bookingAction && !processedActions.has(actionKey)) {
+        // Mark as processed immediately to prevent duplicates
+        setProcessedActions(prev => new Set(prev).add(actionKey));
+        
         // Auto-trigger booking after a short delay
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           handleBookingAction(bookingAction);
         }, 1000);
+        
+        return () => clearTimeout(timer);
       }
     }
-  }, [messages]);
+  }, [messages, isLoading, processedActions]);
 
   const renderActionButtons = (actions: any[]) => {
     if (!actions || actions.length === 0) return null;
