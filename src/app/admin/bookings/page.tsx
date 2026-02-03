@@ -10,11 +10,16 @@ export default async function AdminBookingsPage() {
   const session = await auth();
   if (!session) redirect("/login");
   
-  const isSuperAdmin = session.user.role === "SUPER_ADMIN";
+  // Check quyền truy cập
+  if (session.user.role !== "ADMIN" && session.user.role !== "PARTNER" && session.user.role !== "SUPER_ADMIN") {
+    redirect("/");
+  }
+  
+  const isAdminOrSuperAdmin = session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
 
-  // Lấy Booking (Phân quyền: Partner chỉ thấy đơn của khách sạn mình)
+  // Lấy Booking (Phân quyền: ADMIN/SUPER_ADMIN thấy tất cả, Partner chỉ thấy đơn của khách sạn mình)
   const bookings = await prisma.booking.findMany({
-    where: isSuperAdmin ? {} : {
+    where: isAdminOrSuperAdmin ? {} : {
         hotel: { ownerId: session.user.id }
     },
     include: {
@@ -75,14 +80,20 @@ export default async function AdminBookingsPage() {
                             {booking.status === 'PENDING' && (
                                 <div className="flex justify-end gap-2">
                                     {/* Form Xác nhận */}
-                                    <form action={updateBookingStatus.bind(null, booking.id, 'CONFIRMED')}>
+                                    <form action={async () => {
+                                        "use server";
+                                        await updateBookingStatus(booking.id, 'CONFIRMED');
+                                    }}>
                                         <Button size="sm" className="bg-green-600 hover:bg-green-700 h-8 w-8 p-0 rounded-full">
                                             <CheckCircle className="h-4 w-4" />
                                         </Button>
                                     </form>
                                     
                                     {/* Form Hủy */}
-                                    <form action={updateBookingStatus.bind(null, booking.id, 'CANCELLED')}>
+                                    <form action={async () => {
+                                        "use server";
+                                        await updateBookingStatus(booking.id, 'CANCELLED');
+                                    }}>
                                         <Button size="sm" variant="destructive" className="h-8 w-8 p-0 rounded-full">
                                             <XCircle className="h-4 w-4" />
                                         </Button>

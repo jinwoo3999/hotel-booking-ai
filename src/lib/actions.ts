@@ -287,7 +287,7 @@ export async function updateBookingStatus(bookingId: string, newStatus: string) 
   const session = await auth();
   if (!session || (session?.user?.role !== "ADMIN" && session?.user?.role !== "PARTNER" && session?.user?.role !== "SUPER_ADMIN")) {
     console.error("❌ Unauthorized booking status update attempt");
-    return { error: "Không có quyền thực hiện" };
+    redirect("/login");
   }
 
   try {
@@ -301,14 +301,14 @@ export async function updateBookingStatus(bookingId: string, newStatus: string) 
 
     if (!booking) {
       console.error("❌ Booking not found:", bookingId);
-      return { error: "Không tìm thấy đơn đặt phòng" };
+      return;
     }
 
     // Nếu là Partner, chỉ được cập nhật booking của khách sạn mình
     if (session.user.role === "PARTNER") {
       if (booking.hotel.ownerId !== session.user.id) {
         console.error("❌ Partner trying to update booking of other hotel");
-        return { error: "Không có quyền cập nhật đơn này" };
+        return;
       }
     }
 
@@ -331,11 +331,9 @@ export async function updateBookingStatus(bookingId: string, newStatus: string) 
 
     revalidatePath("/admin/bookings");
     revalidatePath("/dashboard/history");
-    
-    return { success: true, booking: updatedBooking };
+
   } catch (error) {
     console.error("❌ Error updating booking status:", error);
-    return { error: "Có lỗi xảy ra khi cập nhật trạng thái" };
   }
 }
 
