@@ -116,16 +116,19 @@ export default function HotelMap({ lat, lng, hotelName, address }: HotelMapProps
   }
 
   return (
-    <div className="w-full h-64 rounded-xl border border-gray-200 shadow-sm bg-gray-100 flex items-center justify-center">
+    <div className="w-full h-64 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-gray-100 relative">
       {!isLoaded && (
-        <div className="text-gray-500 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
-          <p>Đang tải bản đồ...</p>
+        <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-center z-10">
+          <div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+            <p>Đang tải bản đồ...</p>
+          </div>
         </div>
       )}
       <div 
         ref={mapRef} 
-        className={`w-full h-full rounded-xl ${isLoaded ? 'block' : 'hidden'}`}
+        className="w-full h-full"
+        style={{ position: 'relative', zIndex: 0 }}
       />
     </div>
   );

@@ -33,32 +33,52 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Ngày tháng không hợp lệ" }, { status: 400 });
     }
 
-    // DB-driven, race-safe booking creation with inventory reservation + payment record.
+    // Get room info first
+    const room = await prisma.room.findFirst({ where: { id: roomId, hotelId } });
+    if (!room) {
+      return NextResponse.json({ message: "Phòng không tồn tại" }, { status: 404 });
+    }
+
+    const nights = enumerateNights(start, end);
+    if (nights.length <= 0) {
+      return NextResponse.json({ message: "Ngày không hợp lệ" }, { status: 400 });
+    }
+
+    const policy = await prisma.policy.findUnique({ where: { id: "default" } });
+    const baseAmount = calculateBaseAmount(room.price, nights.length);
+    const { serviceFee, tax } = calculateFees(baseAmount, policy);
+
+    let discount = 0;
+    let appliedVoucherId: string | null = null;
+    
+    // Validate voucher if provided
+    if (voucherCode) {
+      const voucher = await prisma.voucher.findUnique({ 
+        where: { code: String(voucherCode).trim().toUpperCase() } 
+      });
+      if (!voucher) {
+        return NextResponse.json({ message: "VOUCHER_NOT_FOUND" }, { status: 400 });
+      }
+      const evaluation = evaluateVoucher(voucher, baseAmount);
+      if (!evaluation.ok) {
+        return NextResponse.json({ message: evaluation.reason }, { status: 400 });
+      }
+      discount = evaluation.discount;
+      appliedVoucherId = voucher.id;
+    }
+
+    const totalPrice = calculateTotal({ baseAmount, serviceFee, tax, discount });
+
+    // Create booking with inventory reservation in transaction
     const newBooking = await prisma.$transaction(async (tx) => {
-      const room = await tx.room.findFirst({ where: { id: roomId, hotelId } });
-      if (!room) {
-        return null;
-      }
+      // Reserve inventory
+      await ensureRoomInventoryRows(tx, { id: room.id, quantity: room.quantity }, nights);
+      await reserveRoomInventoryOrThrow(tx, room.id, nights);
 
-      const nights = enumerateNights(start, end);
-      if (nights.length <= 0) {
-        throw new Error("INVALID_DATE_RANGE");
-      }
-      const policy = await tx.policy.findUnique({ where: { id: "default" } });
-      const baseAmount = calculateBaseAmount(room.price, nights.length);
-      const { serviceFee, tax } = calculateFees(baseAmount, policy);
-
-      let discount = 0;
-      let appliedVoucherId: string | null = null;
-      if (voucherCode) {
-        const voucher = await tx.voucher.findUnique({ where: { code: String(voucherCode).trim().toUpperCase() } });
-        if (!voucher) throw new Error("VOUCHER_NOT_FOUND");
-        const evaluation = evaluateVoucher(voucher, baseAmount);
-        if (!evaluation.ok) throw new Error(evaluation.reason);
-        discount = evaluation.discount;
-        appliedVoucherId = voucher.id;
+      // Update voucher usage if applied
+      if (appliedVoucherId) {
         await tx.voucher.update({
-          where: { id: voucher.id },
+          where: { id: appliedVoucherId },
           data: {
             usedCount: { increment: 1 },
             users: { connect: { id: user.id } },
@@ -66,11 +86,7 @@ export async function POST(req: Request) {
         });
       }
 
-      const totalPrice = calculateTotal({ baseAmount, serviceFee, tax, discount });
-
-      await ensureRoomInventoryRows(tx, { id: room.id, quantity: room.quantity }, nights);
-      await reserveRoomInventoryOrThrow(tx, room.id, nights);
-
+      // Create booking
       const booking = await tx.booking.create({
         data: {
           userId: user.id,
@@ -82,7 +98,6 @@ export async function POST(req: Request) {
           discount,
           totalPrice,
           paymentMethod: paymentMethod === "PAY_NOW" ? "PAY_NOW" : "PAY_AT_HOTEL",
-          // Backwards compatibility: existing UI expects "PENDING" for new bookings.
           status: "PENDING",
           guestName: guestName || user.name || "Khách",
           guestPhone: guestPhone || "",
@@ -91,24 +106,25 @@ export async function POST(req: Request) {
         },
       });
 
-      await tx.payment.create({
-        data: {
-          bookingId: booking.id,
-          amount: totalPrice,
-          currency: "VND",
-          method: paymentMethod === "PAY_NOW" ? "API_PAY_NOW" : "API_PAY_AT_HOTEL",
-          status: "PENDING",
-        },
-      });
-
       return booking;
     });
 
+    // Create payment record outside transaction
+    await prisma.payment.create({
+      data: {
+        bookingId: newBooking.id,
+        amount: totalPrice,
+        currency: "VND",
+        method: paymentMethod === "PAY_NOW" ? "API_PAY_NOW" : "API_PAY_AT_HOTEL",
+        status: "PENDING",
+      },
+    });
+    
     if (!newBooking) {
-      return NextResponse.json({ message: "Lỗi phòng" }, { status: 400 });
+      return NextResponse.json({ message: "Lỗi tạo booking" }, { status: 400 });
     }
     
-    return NextResponse.json(newBooking, { status: 201 });
+    return NextResponse.json({ success: true, booking: newBooking }, { status: 201 });
 
   } catch (error: unknown) {
     console.error("Lỗi API Booking:", error);

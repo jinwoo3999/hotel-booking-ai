@@ -259,43 +259,15 @@ export async function createBooking(formData: FormData) {
 
     console.log("✅ Booking created successfully:", booking.id);
 
-    // Nếu là thanh toán bằng thẻ, tự động xử lý thanh toán
-    if (paymentMethod === "PAY_NOW") {
-      console.log("🔄 Processing automatic card payment...");
-      
-      // Simulate card payment processing
-      const cardResult = await autoConfirmCardPayment(booking.id, "VISA");
-      
-      if (cardResult.success) {
-        console.log("✅ Card payment successful, booking auto-confirmed");
-        revalidatePath("/dashboard/history");
-        return { 
-          success: true, 
-          bookingId: booking.id,
-          redirectTo: "/dashboard/history",
-          message: `Thanh toán thành công! Đặt phòng đã được xác nhận. ${cardResult.pointsEarned ? `Bạn nhận được ${cardResult.pointsEarned} điểm thưởng.` : ''}`,
-          autoConfirmed: true
-        };
-      } else {
-        console.log("❌ Card payment failed");
-        return { 
-          error: cardResult.error || "Thanh toán thẻ thất bại",
-          bookingId: booking.id,
-          redirectTo: `/payment/${booking.id}`
-        };
-      }
-    } else {
-      // Thanh toán tại khách sạn - chuyển đến trang thanh toán
-      console.log("🔗 Redirecting to payment page for PAY_AT_HOTEL");
-      revalidatePath("/dashboard/history");
-      
-      return { 
-        success: true, 
-        bookingId: booking.id,
-        redirectTo: `/payment/${booking.id}`,
-        message: "Đặt phòng thành công! Đang chuyển đến trang thanh toán..."
-      };
-    }
+    // Redirect to payment page
+    revalidatePath("/dashboard/history");
+    
+    return { 
+      success: true, 
+      bookingId: booking.id,
+      redirectTo: `/payment/${booking.id}`,
+      message: "Đặt phòng thành công! Đang chuyển đến trang thanh toán..."
+    };
     
   } catch (error) {
     console.error("❌ Booking creation error:", error);

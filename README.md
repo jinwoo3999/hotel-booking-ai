@@ -1,87 +1,171 @@
-# 🏨 LUMINA STAY - HỆ THỐNG ĐẶT PHÒNG KHÁCH SẠN VỚI AI
+# 🏨 Lumina Stay - Hệ Thống Đặt Phòng Khách Sạn
 
-## 🎯 TỔNG QUAN
-Lumina Stay là hệ thống đặt phòng khách sạn hiện đại với AI Assistant thông minh, hỗ trợ đầy đủ cho khách hàng, đối tác khách sạn và quản trị viên.
+Nền tảng đặt phòng khách sạn với AI hỗ trợ tìm kiếm và đặt phòng thông minh.
 
-**Tech Stack:** Next.js 16 + PostgreSQL + Prisma + NextAuth.js + Google Gemini AI
+## 🚀 Tính Năng Chính
 
-## 🚀 TÍNH NĂNG CHÍNH
+### Khách Hàng
+- 🤖 **AI Chat** - Tìm và đặt phòng qua chat thông minh
+- 🔍 **Tìm kiếm thông minh** - AI xếp hạng khách sạn dựa trên nhu cầu
+- 🎫 **Voucher** - Hệ thống mã giảm giá tự động
+- 💳 **Thanh toán** - QR Code, Thẻ ngân hàng, Tiền mặt
+- 📱 **Responsive** - Hoạt động mượt trên mọi thiết bị
 
-### 🤖 AI Assistant Thông Minh
-- **Google Gemini 2.5 Flash** - AI thật, không phải chatbot
-- **Location-specific filtering** - 100% chính xác theo vị trí
-- **Entity extraction** - Hiểu ngân sách, số người, thời gian
-- **No hallucination** - Chỉ dùng dữ liệu thật từ database
+### Admin
+- 🏨 **Quản lý khách sạn & phòng**
+- 📊 **Dashboard thống kê**
+- 👥 **Quản lý người dùng**
+- 🎟️ **Quản lý voucher**
+- 📝 **Quản lý booking**
+- 🤝 **Duyệt đối tác**
 
-### 🤝 Hệ Thống Partner Hoàn Chỉnh
-- Đăng ký partner qua form chi tiết
-- Admin duyệt và tự động tạo tài khoản
-- Partner quản lý khách sạn riêng
-- Dashboard phân quyền rõ ràng
+## 🛠️ Công Nghệ
 
-### 📊 Dashboard Phân Quyền
-- **Super Admin:** Quản lý toàn hệ thống
-- **Partner:** Chỉ quản lý khách sạn của mình
-- **User:** Dashboard cá nhân với booking history
+- **Framework:** Next.js 16 (App Router)
+- **Database:** PostgreSQL + Prisma ORM
+- **Auth:** NextAuth.js
+- **UI:** Tailwind CSS + shadcn/ui
+- **Language:** TypeScript
 
-## 🔧 CÀI ĐẶT & CHẠY
+## 📦 Cài Đặt
 
+### Yêu Cầu
+- Node.js 18+
+- PostgreSQL
+- npm hoặc yarn
+
+### Các Bước
+
+1. **Clone & Install**
 ```bash
-# Clone repository
-git clone [repository-url]
 cd hotel-booking-ai
-
-# Cài đặt dependencies
 npm install
+```
 
-# Setup database
-npx prisma migrate dev
-npx prisma db seed
+2. **Cấu hình .env**
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/hotel_booking"
+NEXTAUTH_SECRET="your-secret-key"
+NEXTAUTH_URL="http://localhost:3000"
+```
 
-# Chạy development server
+3. **Setup Database**
+```bash
+npx prisma generate
+npx prisma db push
+npm run seed
+```
+
+4. **Chạy Development**
+```bash
 npm run dev
 ```
 
-## 🎯 THÔNG TIN ĐĂNG NHẬP
+Mở http://localhost:3000
 
-### Tài khoản demo:
-- **Super Admin:** admin@gmail.com / 123456
-- **Partner:** partner@gmail.com / 123456
-- **User:** user@gmail.com / 123456
+## 👤 Tài Khoản Demo
 
-## 📊 DỮ LIỆU DEMO
-- **Hotels:** 2 khách sạn (Đà Lạt, Hà Nội)
-- **Bookings:** 5 đặt phòng với revenue 5M
-- **Vouchers:** 3 voucher active
-- **Partner Apps:** 6 đơn đăng ký (4 pending, 1 approved, 1 rejected)
+### Admin
+- Email: `admin@lumina.com`
+- Password: `admin123`
 
-## 🎬 DEMO FLOW
+### Khách hàng
+- Email: `user@example.com`
+- Password: `user123`
 
-1. **AI Assistant:** `/ai-assistant` - Test chat thông minh
-2. **Partner Registration:** `/become-partner` - Đăng ký đối tác
-3. **Admin Approval:** `/admin/partner-apps` - Duyệt đơn
-4. **Partner Dashboard:** `/admin` (login partner) - Quản lý khách sạn
-5. **User Booking:** `/hotels` - Đặt phòng end-to-end
+## 📁 Cấu Trúc Thư Mục
 
-## 🔒 SECURITY
-- NextAuth.js authentication
-- Role-based access control
-- Password hashing với bcrypt
-- SQL injection protection
+```
+hotel-booking-ai/
+├── prisma/              # Database schema & migrations
+├── public/              # Static files
+├── src/
+│   ├── app/            # Next.js App Router
+│   │   ├── (auth)/    # Auth pages
+│   │   ├── admin/     # Admin dashboard
+│   │   ├── api/       # API routes
+│   │   └── dashboard/ # User dashboard
+│   ├── components/     # React components
+│   │   ├── ai/        # AI chat components
+│   │   ├── admin/     # Admin components
+│   │   └── ui/        # shadcn/ui components
+│   └── lib/           # Utilities & helpers
+│       └── ai/        # AI logic
+└── README.md
+```
 
-## 📈 PERFORMANCE
-- Next.js 16 optimization
-- Database connection pooling
-- Caching strategy
-- Image optimization
+## 🎯 Tính Năng AI
 
-## 🎊 TRẠNG THÁI
-✅ **HOÀN THÀNH 100% - SẴN SÀNG THUYẾT TRÌNH**
+### Smart Search
+- Phân tích ngôn ngữ tự nhiên
+- Xếp hạng khách sạn theo:
+  - Business Tags (40%)
+  - Rating (30%)
+  - Giá (30%)
 
-Hệ thống đã được test đầy đủ và sẵn sàng cho demo/production.
+### Auto Voucher
+- Tự động đề xuất voucher tốt nhất
+- Kiểm tra điều kiện áp dụng
+- Tính toán giảm giá real-time
+
+### Booking Flow
+1. User chat với AI
+2. AI hiển thị khách sạn phù hợp
+3. Chọn khách sạn → Xem phòng
+4. Chọn phòng → Điền thông tin
+5. Chọn voucher & thanh toán
+6. Redirect đến trang thanh toán
+
+## 🔐 Phân Quyền
+
+- **SUPER_ADMIN** - Toàn quyền
+- **ADMIN** - Quản lý hệ thống
+- **PARTNER** - Quản lý khách sạn của mình
+- **USER** - Đặt phòng
+
+## 📝 Scripts
+
+```bash
+npm run dev          # Development server
+npm run build        # Build production
+npm run start        # Start production
+npm run lint         # Lint code
+npx prisma studio    # Database GUI
+```
+
+## 🐛 Troubleshooting
+
+### Port đã được sử dụng
+```bash
+# Windows
+taskkill /F /PID <process-id>
+
+# Linux/Mac
+kill -9 <process-id>
+```
+
+### Database connection error
+- Kiểm tra PostgreSQL đang chạy
+- Kiểm tra DATABASE_URL trong .env
+- Chạy `npx prisma generate`
+
+### Build error
+```bash
+# Xóa cache và rebuild
+rm -rf .next node_modules
+npm install
+npm run build
+```
+
+## 📞 Hỗ Trợ
+
+- Email: support@lumina.com
+- Hotline: 1900 6789
+
+## 📄 License
+
+MIT License - Tự do sử dụng cho mục đích cá nhân và thương mại.
 
 ---
 
-**Phát triển bởi:** Nhóm sinh viên thực tập  
-**Ngày hoàn thành:** Tháng 2, 2026  
-**Version:** 1.0.0
+Made with ❤️ by Lumina Team

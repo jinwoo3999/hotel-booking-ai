@@ -111,16 +111,30 @@ export default async function HotelDetailPage(props: { params: Promise<{ id: str
                 {/* Map Section */}
                 <div className="border-t pt-8">
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">Vị trí</h2>
-                    <HotelMap 
-                        lat={hotel.latitude} 
-                        lng={hotel.longitude} 
-                        hotelName={hotel.name}
-                        address={`${hotel.address}, ${hotel.city}`}
-                    />
-                    <div className="mt-4 flex items-center gap-2 text-gray-600">
-                        <MapPin className="w-5 h-5 text-indigo-600" />
-                        <span>{hotel.address}, {hotel.city}</span>
-                    </div>
+                    
+                    {/* Only show map if coordinates are not default */}
+                    {(hotel.latitude !== 11.940419 || hotel.longitude !== 108.458313) ? (
+                      <>
+                        <HotelMap 
+                            lat={hotel.latitude} 
+                            lng={hotel.longitude} 
+                            hotelName={hotel.name}
+                            address={`${hotel.address}, ${hotel.city}`}
+                        />
+                        <div className="mt-4 flex items-center gap-2 text-gray-600">
+                            <MapPin className="w-5 h-5 text-indigo-600" />
+                            <span>{hotel.address}, {hotel.city}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-8 text-center">
+                        <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 font-medium mb-2">Bản đồ đang được cập nhật</p>
+                        <p className="text-sm text-gray-400">
+                          <strong>Địa chỉ:</strong> {hotel.address}, {hotel.city}
+                        </p>
+                      </div>
+                    )}
                 </div>
             </div>
 

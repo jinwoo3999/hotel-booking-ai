@@ -67,6 +67,7 @@ async function seedRealData() {
         ownerId: partner.id,
         latitude: 11.940419,
         longitude: 108.458313,
+        businessTags: ['honeymoon_ready', 'romantic', 'luxury', 'quiet_zone', 'tourist_friendly'],
         images: ['https://images.unsplash.com/photo-1544885935-98dd03d09034?q=80&w=1000'],
         rooms: {
           create: [
@@ -106,6 +107,7 @@ async function seedRealData() {
         ownerId: partner.id,
         latitude: 21.028511,
         longitude: 105.804817,
+        businessTags: ['business_friendly', 'city_center', 'fast_checkin', 'luxury'],
         images: ['https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=1000'],
         rooms: {
           create: [
@@ -128,6 +130,86 @@ async function seedRealData() {
               maxGuests: 3,
               amenities: ['Wifi miễn phí', 'Phòng làm việc', 'Ăn sáng executive', 'Butler service'],
               images: ['https://images.unsplash.com/photo-1578683010236-d716f9a3f461?q=80&w=1000']
+            }
+          ]
+        }
+      }
+    });
+
+    const hotelDaLat2 = await prisma.hotel.create({
+      data: {
+        name: 'Terracotta Hotel & Resort Đà Lạt',
+        city: 'Đà Lạt',
+        address: 'Khu Phố 3, Phường 3, Đà Lạt',
+        description: 'Resort phong cách Địa Trung Hải với kiến trúc độc đáo',
+        rating: 4.6,
+        status: 'ACTIVE',
+        ownerId: partner.id,
+        latitude: 11.945419,
+        longitude: 108.442313,
+        businessTags: ['honeymoon_ready', 'romantic', 'luxury', 'family_safe', 'spacious'],
+        images: ['https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=1000'],
+        rooms: {
+          create: [
+            {
+              name: 'Terracotta Deluxe',
+              price: 2200000,
+              description: 'Phòng deluxe phong cách Địa Trung Hải với sân vườn riêng',
+              quantity: 8,
+              capacity: 2,
+              maxGuests: 3,
+              amenities: ['Wifi miễn phí', 'Sân vườn riêng', 'Bồn tắm', 'Minibar'],
+              images: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=1000']
+            },
+            {
+              name: 'Family Villa',
+              price: 5500000,
+              description: 'Villa gia đình 2 phòng ngủ với bếp và phòng khách rộng',
+              quantity: 4,
+              capacity: 6,
+              maxGuests: 6,
+              amenities: ['Wifi miễn phí', 'Bếp riêng', '2 phòng ngủ', 'Sân vườn BBQ'],
+              images: ['https://images.unsplash.com/photo-1602002418082-a4443e081dd1?q=80&w=1000']
+            }
+          ]
+        }
+      }
+    });
+
+    const hotelHaNoi2 = await prisma.hotel.create({
+      data: {
+        name: 'Hanoi Business Hub',
+        city: 'Hà Nội',
+        address: '45 Láng Hạ, Đống Đa, Hà Nội',
+        description: 'Khách sạn chuyên phục vụ khách công tác với phòng họp hiện đại',
+        rating: 4.3,
+        status: 'ACTIVE',
+        ownerId: partner.id,
+        latitude: 21.018511,
+        longitude: 105.814817,
+        businessTags: ['business_friendly', 'fast_checkin', 'near_airport', 'city_center'],
+        images: ['https://images.unsplash.com/photo-1564501049412-61c2a3083791?q=80&w=1000'],
+        rooms: {
+          create: [
+            {
+              name: 'Business Standard',
+              price: 1200000,
+              description: 'Phòng tiêu chuẩn với bàn làm việc rộng và wifi tốc độ cao',
+              quantity: 15,
+              capacity: 1,
+              maxGuests: 2,
+              amenities: ['Wifi tốc độ cao', 'Bàn làm việc', 'Ăn sáng buffet', 'Máy in miễn phí'],
+              images: ['https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=1000']
+            },
+            {
+              name: 'Business Suite',
+              price: 2400000,
+              description: 'Suite với phòng họp nhỏ và không gian làm việc riêng',
+              quantity: 6,
+              capacity: 2,
+              maxGuests: 2,
+              amenities: ['Wifi tốc độ cao', 'Phòng họp nhỏ', 'Máy chiếu', 'Coffee maker'],
+              images: ['https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?q=80&w=1000']
             }
           ]
         }
@@ -165,6 +247,26 @@ async function seedRealData() {
           minSpend: 2000000,
           endDate: new Date('2026-06-30'),
           usageLimit: 50,
+          usedCount: 0
+        },
+        {
+          code: 'BUSINESS20',
+          discount: 20,
+          type: 'PERCENT',
+          description: 'Giảm 20% cho khách công tác',
+          minSpend: 1500000,
+          endDate: new Date('2026-12-31'),
+          usageLimit: 150,
+          usedCount: 0
+        },
+        {
+          code: 'FAMILY800',
+          discount: 800000,
+          type: 'AMOUNT',
+          description: 'Ưu đãi gia đình - Giảm 800k cho đơn từ 4 triệu',
+          minSpend: 4000000,
+          endDate: new Date('2026-12-31'),
+          usageLimit: 80,
           usedCount: 0
         }
       ]
@@ -348,9 +450,9 @@ Với những mẹo trên, bạn sẽ tìm được khách sạn Đà Lạt vừ
 
     console.log('✅ Đã tạo dữ liệu thực tế thành công!');
     console.log('📊 Thống kê:');
-    console.log('- 2 khách sạn (Đà Lạt + Hà Nội)');
-    console.log('- 4 loại phòng');
-    console.log('- 3 voucher giảm giá');
+    console.log('- 4 khách sạn (2 Đà Lạt + 2 Hà Nội)');
+    console.log('- 8 loại phòng');
+    console.log('- 5 voucher giảm giá');
     console.log('- 4 điểm vui chơi');
     console.log('- 3 tài khoản user');
 

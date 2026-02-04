@@ -33,10 +33,27 @@ model User {
   flightBookings FlightBooking[]
   hotels         Hotel[]
 
-  vouchers  Voucher[] // Quan hệ N-N với Voucher
+  vouchers  Voucher[]
   blogPosts BlogPost[]
   aiConversations AiConversation[]
   partnerApplications PartnerApplication[]
+  
+  // AI Features
+  profile              UserProfile?
+  consent              UserConsent?
+  behaviorPattern      BehaviorPattern?
+  interactions         UserInteraction[]
+  conversationSessions ConversationSession[]
+  roomHolds            RoomHold[]
+  proactiveSuggestions ProactiveSuggestion[]
+  priceWatches         PriceWatch[]
+  autoActionLogs       AutoActionLog[]
+  
+  // Enterprise AI System
+  aiDelegation       AIDelegation?
+  draftBookings      DraftBooking[]
+  draftCancellations DraftCancellation[]
+  aiTaskLogs         AITaskLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -78,6 +95,7 @@ model Hotel {
   images      String[]
   rating      Float    @default(0)
   status      String   @default("ACTIVE")
+  businessTags String[] @default([]) // AI taxonomy: business_friendly, near_airport, family_safe, honeymoon_ready, etc.
 
   latitude  Float @default(11.940419)
   longitude Float @default(108.458313)
@@ -87,6 +105,8 @@ model Hotel {
 
   rooms    Room[]
   bookings Booking[]
+  priceWatches PriceWatch[]
+  draftBookings DraftBooking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -109,6 +129,9 @@ model Room {
   hotel       Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   bookings    Booking[]
   inventories RoomInventory[]
+  priceHistory PriceHistory[]
+  holds        RoomHold[]
+  draftBookings DraftBooking[]
 }
 
 // 3. BOOKING & FLIGHT
@@ -160,6 +183,7 @@ model Booking {
   room    Room     @relation(fields: [roomId], references: [id])
   voucher Voucher? @relation(fields: [voucherId], references: [id])
   payment Payment?
+  draftCancellations DraftCancellation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -397,4 +421,406 @@ model PartnerApplication {
   @@index([status])
   @@index([email])
   @@index([submittedAt])
+}
+
+// ============================================================================
+// AI ASSISTANT - AUTO-EXECUTION MODELS
+// ============================================================================
+
+// User consent for auto-actions
+model UserConsent {
+  id     String @id @default(cuid())
+  userId String @unique
+  
+  // Auto-action permissions
+  autoBookingEnabled     Boolean @default(false)
+  autoRoomHoldEnabled    Boolean @default(true)
+  autoVoucherEnabled     Boolean @default(true)
+  priceAlertsEnabled     Boolean @default(true)
+  proactiveSuggestionsEnabled Boolean @default(true)
+  
+  // Limits
+  maxAutoBookingAmount   Float   @default(3000000)
+  
+  // Consent tracking
+  consentGivenAt DateTime @default(now())
+  lastUpdated    DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+}
+
+// Behavior patterns for proactive AI
+model BehaviorPattern {
+  id     String @id @default(cuid())
+  userId String @unique
+  
+  // Travel frequency
+  bookingsPerYear      Float   @default(0)
+  lastBookingDate      DateTime?
+  
+  // Destination patterns
+  favoriteDestinations Json    @default("[]")
+  
+  // Booking patterns
+  avgBookingLeadTime   Int     @default(14)
+  avgStayDuration      Int     @default(2)
+  avgPricePerNight     Float   @default(0)
+  
+  // Preferences (learned)
+  preferredHotelTypes  String[]
+  preferredAmenities   String[]
+  
+  // Viewing behavior
+  avgTimeOnHotel       Int     @default(0)
+  hotelsViewedPerBooking Int   @default(5)
+  viewingToBookingRate Float   @default(0.2)
+  
+  // Prediction scores
+  priceSensitivity     Float   @default(0.5)
+  impulseBuyer         Float   @default(0.3)
+  plannerType          Float   @default(0.5)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+// Room holds for auto-holding
+model RoomHold {
+  id     String @id @default(cuid())
+  roomId String
+  userId String
+  
+  heldAt    DateTime @default(now())
+  expiresAt DateTime
+  
+  status String @default("active")
+  
+  // Conversion tracking
+  convertedToBookingId String?
+  
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([roomId])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+// Proactive suggestions queue
+model ProactiveSuggestion {
+  id     String @id @default(cuid())
+  userId String
+  
+  type     String
+  priority String @default("medium")
+  
+  message  String
+  actionType String?
+  actionData Json?
+  
+  // Delivery tracking
+  status      String   @default("pending")
+  deliveredAt DateTime?
+  actedAt     DateTime?
+  
+  // Expiration
+  expiresAt DateTime?
+  
+  // Reasoning
+  reasoning String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId, status])
+  @@index([priority])
+  @@index([expiresAt])
+}
+
+// Price monitoring for alerts
+model PriceWatch {
+  id       String @id @default(cuid())
+  userId   String
+  hotelId  String
+  
+  // Watch criteria
+  targetPrice    Float?
+  alertOnAnyDrop Boolean @default(true)
+  minDropPercent Float   @default(10)
+  
+  // Current state
+  lastKnownPrice Float
+  lastChecked    DateTime @default(now())
+  
+  // Alert tracking
+  alertsSent     Int      @default(0)
+  lastAlertSent  DateTime?
+  
+  active Boolean @default(true)
+  
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId, active])
+  @@index([hotelId])
+  @@index([lastChecked])
+}
+
+// Auto-executed actions log
+model AutoActionLog {
+  id     String @id @default(cuid())
+  userId String
+  
+  actionType String
+  status     String
+  
+  // Action details
+  actionData Json
+  result     Json?
+  
+  // Execution metrics
+  executionTime Int
+  
+  // User feedback
+  userFeedback String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([actionType])
+  @@index([status])
+}
+
+// User profile for AI personalization
+model UserProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  
+  // Explicit preferences
+  favoriteLocations    String[]
+  budgetMin            Float?
+  budgetMax            Float?
+  preferredRoomTypes   String[]
+  preferredAmenities   String[]
+  travelCompanions     Int      @default(2)
+  travelFrequency      String?
+  
+  // Inferred preferences
+  inferredBudget       Float?
+  preferredSeasons     String[]
+  hotelTypePreference  String?
+  avgBookingLeadTime   Int?
+  avgStayDuration      Int?
+  
+  // Privacy settings
+  personalizationEnabled Boolean @default(true)
+  dataCollectionConsent  Boolean @default(false)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+// Track user interactions for learning
+model UserInteraction {
+  id     String @id @default(cuid())
+  userId String
+  
+  interactionType String
+  entityType      String?
+  entityId        String?
+  
+  // Context
+  duration Int?
+  
+  metadata Json?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([interactionType])
+}
+
+// Price history for prediction
+model PriceHistory {
+  id     String @id @default(cuid())
+  roomId String
+  
+  date  DateTime @db.Date
+  price Float
+  
+  // Context for price changes
+  dayOfWeek    Int
+  isWeekend    Boolean
+  isHoliday    Boolean
+  seasonalFlag String?
+  
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([roomId, date])
+  @@index([roomId, date])
+}
+
+// AI conversation sessions
+model ConversationSession {
+  id        String @id @default(cuid())
+  userId    String?
+  sessionId String @unique
+  
+  // Session state
+  stage         String
+  extractedInfo Json
+  
+  // Metadata
+  startedAt  DateTime @default(now())
+  lastActive DateTime @default(now())
+  endedAt    DateTime?
+  
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([sessionId])
+  @@index([lastActive])
+}
+
+// ============================================================================
+// ENTERPRISE AUTONOMOUS AI SYSTEM
+// ============================================================================
+
+// AI Delegation Settings - User authorizes AI to execute actions
+model AIDelegation {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  // Delegation permissions
+  canPlaceBookings    Boolean @default(false)
+  canCancelBookings   Boolean @default(false)
+  canOptimizeRefunds  Boolean @default(false)
+  canRebookForPolicy  Boolean @default(false)
+
+  // Limits
+  maxBudgetPerBooking Float?
+  cancellationTimeWindow Int? // hours before check-in
+  refundThreshold Float? // minimum refund % to auto-cancel
+
+  // Audit
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Draft Booking - AI prepares booking before execution
+model DraftBooking {
+  id String @id @default(cuid())
+  userId String
+
+  // Booking details
+  hotelId   String
+  roomId    String
+  checkIn   DateTime @db.Date
+  checkOut  DateTime @db.Date
+  guests    Int
+  totalPrice Float
+
+  // AI reasoning
+  intentType String // business, leisure, honeymoon, family, emergency
+  matchedTags String[] // businessTags that matched
+  optimizationScore Float // 0-1, how good this option is
+  reasoning String @db.Text // why AI selected this
+
+  // Status
+  status String @default("PREPARED") // PREPARED, CONFIRMED, EXPIRED, REJECTED
+  expiresAt DateTime // drafts expire after 24h
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotel Hotel @relation(fields: [hotelId], references: [id])
+  room  Room  @relation(fields: [roomId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+// Draft Cancellation - AI prepares cancellation with refund analysis
+model DraftCancellation {
+  id String @id @default(cuid())
+  userId String
+  bookingId String
+
+  // Refund analysis
+  estimatedRefund Float
+  refundPercentage Float
+  policyType String // flexible, moderate, strict
+  optimalCancelTime DateTime? // best time to cancel for max refund
+
+  // AI reasoning
+  reasoning String @db.Text
+  riskLevel String // low, medium, high
+  recommendation String // CANCEL_NOW, WAIT, DONT_CANCEL
+
+  // Status
+  status String @default("PREPARED") // PREPARED, EXECUTED, EXPIRED, REJECTED
+  expiresAt DateTime
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([bookingId])
+}
+
+// AI Task Log - Audit trail for all AI actions
+model AITaskLog {
+  id String @id @default(cuid())
+  userId String?
+
+  // Task details
+  taskType String // PREPARE_BOOKING, EXECUTE_BOOKING, PREPARE_CANCELLATION, etc.
+  intent String // business, leisure, honeymoon, family, emergency
+  inputData Json // structured input from UI
+  outputData Json // AI result
+
+  // Execution
+  status String // SUCCESS, FAILED, PARTIAL
+  executionTime Int // milliseconds
+  wasDelegated Boolean @default(false)
+  wasAutoExecuted Boolean @default(false)
+
+  // Audit
+  errorMessage String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([taskType])
+  @@index([wasDelegated])
 }

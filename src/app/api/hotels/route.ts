@@ -5,6 +5,32 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     
+    // Check if requesting single hotel by ID
+    const id = searchParams.get("id");
+    if (id) {
+      const hotel = await prisma.hotel.findUnique({
+        where: { id },
+        include: {
+          rooms: {
+            where: { quantity: { gt: 0 } },
+            orderBy: { price: 'asc' }
+          }
+        }
+      });
+      
+      if (!hotel) {
+        return NextResponse.json({ 
+          success: false,
+          message: "Khách sạn không tồn tại" 
+        }, { status: 404 });
+      }
+      
+      return NextResponse.json({
+        success: true,
+        hotels: [hotel]
+      });
+    }
+    
     // Search parameters
     const query = searchParams.get("q") || "";
     const city = searchParams.get("city") || "";

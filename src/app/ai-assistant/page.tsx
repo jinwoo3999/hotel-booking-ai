@@ -1,20 +1,49 @@
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { ClientSiteHeader } from "@/components/layouts/ClientSiteHeader";
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bot, MessageCircle, Sparkles, Zap, Heart, Star } from "lucide-react";
-import QuickActionCard from "@/components/ai/QuickActionCard";
+import { useState, useEffect } from "react";
 
-export default async function AIAssistantPage() {
-  const session = await auth();
+// Simple QuickActionCard component
+function QuickActionCard({ action, index }: { action: string; index: number }) {
+  return (
+    <button
+      onClick={() => {
+        // Trigger the AI chat with this action
+        const event = new CustomEvent('openAIChat', { detail: { message: action } });
+        window.dispatchEvent(event);
+      }}
+      className="p-4 text-left rounded-xl border-2 border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200 group"
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center flex-shrink-0 transition-colors">
+          <span className="text-sm font-bold text-indigo-600">{index + 1}</span>
+        </div>
+        <p className="text-sm text-gray-700 group-hover:text-indigo-900 font-medium leading-relaxed">
+          {action}
+        </p>
+      </div>
+    </button>
+  );
+}
 
-  // Lấy một số thống kê để hiển thị
-  const [hotelCount, voucherCount] = await Promise.all([
-    prisma.hotel.count({ where: { status: "ACTIVE" } }),
-    prisma.voucher.count({ where: { endDate: { gte: new Date() } } }),
-  ]);
-  
-  const conversationCount = 0; // Tạm thời set = 0
+export default function AIAssistantPage() {
+  const [stats, setStats] = useState({ hotelCount: 0, voucherCount: 0 });
+
+  useEffect(() => {
+    // Fetch stats on client side
+    fetch('/api/dashboard/stats')
+      .then(res => res.json())
+      .then(data => {
+        setStats({
+          hotelCount: data.totalHotels || 0,
+          voucherCount: data.activeVouchers || 0
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  const conversationCount = 0;
 
   const features = [
     {
@@ -50,9 +79,6 @@ export default async function AIAssistantPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md shadow-sm border-b">
-        <ClientSiteHeader session={session as any} />
-      </div>
 
       <main className="container mx-auto max-w-6xl px-4 py-12">
         
@@ -74,11 +100,11 @@ export default async function AIAssistantPage() {
           {/* STATS */}
           <div className="flex flex-wrap justify-center gap-8 mb-12">
             <div className="text-center">
-              <div className="text-3xl font-bold text-indigo-600">{hotelCount}+</div>
+              <div className="text-3xl font-bold text-indigo-600">{stats.hotelCount}+</div>
               <div className="text-sm text-gray-600">Khách sạn</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">{voucherCount}</div>
+              <div className="text-3xl font-bold text-purple-600">{stats.voucherCount}</div>
               <div className="text-sm text-gray-600">Voucher</div>
             </div>
             <div className="text-center">

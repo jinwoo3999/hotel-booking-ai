@@ -116,6 +116,19 @@ export async function getRoomAvailabilitySummary(roomId: string, checkIn: Date, 
   const nights = enumerateNights(checkIn, checkOut);
   if (nights.length === 0) return { available: false, remainingMin: 0 };
 
+  // Lấy thông tin phòng
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { id: true, quantity: true }
+  });
+
+  if (!room) return { available: false, remainingMin: 0 };
+
+  // Tự động tạo inventory nếu chưa có (auto-seed)
+  await prisma.$transaction(async (tx) => {
+    await ensureRoomInventoryRows(tx, room, nights);
+  });
+
   const rows = await prisma.roomInventory.findMany({
     where: {
       roomId,
@@ -124,7 +137,7 @@ export async function getRoomAvailabilitySummary(roomId: string, checkIn: Date, 
     select: { total: true, booked: true, date: true },
   });
 
-  // Nếu thiếu dòng inventory, coi như không có sẵn cho đến khi admin/seed tạo chúng
+  // Sau khi tạo, nếu vẫn thiếu thì có vấn đề
   if (rows.length !== nights.length) return { available: false, remainingMin: 0 };
 
   const remainingMin = rows.reduce((min, r) => Math.min(min, r.total - r.booked), Number.POSITIVE_INFINITY);

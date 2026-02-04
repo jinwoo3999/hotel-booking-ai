@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import RoomManager from "@/components/admin/RoomManager"; 
+import BusinessTagsManager from "@/components/admin/BusinessTagsManager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin } from "lucide-react";
@@ -51,6 +52,13 @@ export default async function AdminHotelDetailPage(props: { params: Promise<{ id
                 </Badge>
             </div>
         </div>
+
+        {/* PHÂN LOẠI KHÁCH SẠN (CHỈ ADMIN) */}
+        {isAdmin && (
+          <div className="mb-8">
+            <BusinessTagsManager hotelId={hotel.id} initialTags={hotel.businessTags} />
+          </div>
+        )}
 
         {/* KHU VỰC QUẢN LÝ PHÒNG */}
         <div className="bg-white rounded-xl shadow-sm border p-6">

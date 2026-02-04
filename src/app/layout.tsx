@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import AuthProvider from "@/providers/AuthProvider";
-import { FloatingChat } from "@/features/ai/components/FloatingChat";
+import EnterpriseAIChat from "@/components/ai/EnterpriseAIChat";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,7 +22,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           {children}
-          <FloatingChat />
+          <EnterpriseAIChat />
           <Toaster position="top-center" richColors />
         </AuthProvider>
       </body>
