@@ -42,15 +42,27 @@ export default async function HotelDetailPage(props: { params: Promise<{ id: str
 
       <main className="container mx-auto max-w-7xl px-4 py-8 relative z-0">
         
-        <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-3">{hotel.name}</h1>
-            <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600">
-                <span className="flex items-center gap-1 bg-white px-3 py-1 rounded-full border shadow-sm">
-                    <MapPin className="w-4 h-4 text-indigo-600"/> {hotel.address}, {hotel.city}
-                </span>
-                <span className="flex items-center gap-1 bg-white px-3 py-1 rounded-full border shadow-sm">
-                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500"/> {hotel.rating} (Tuyệt vời)
-                </span>
+        <div className="mb-8 bg-white rounded-2xl p-6 shadow-sm border">
+            <div className="flex items-start gap-6">
+                <img 
+                    src={getImg(hotel.images, 0)} 
+                    alt={hotel.name}
+                    className="w-32 h-32 object-cover rounded-xl shadow-md"
+                />
+                <div className="flex-1">
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-3">{hotel.name}</h1>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                        <span className="flex items-center gap-1 bg-gray-50 px-3 py-1.5 rounded-full border">
+                            <MapPin className="w-4 h-4 text-indigo-600"/> {hotel.address}, {hotel.city}
+                        </span>
+                        <span className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-full border border-yellow-200">
+                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500"/> {hotel.rating} (Tuyệt vời)
+                        </span>
+                        <span className="flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-200 text-indigo-700 font-medium">
+                            {hotel.rooms.length} loại phòng
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -95,12 +107,72 @@ export default async function HotelDetailPage(props: { params: Promise<{ id: str
                                     <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50"><Check className="w-3 h-3 mr-1"/> Có thể hủy</Badge>
                                 </div>
                             </div>
-                            <div className="mt-6 pt-4 border-t border-dashed flex items-end justify-between">
+                            <div className="mt-6 pt-4 border-t border-dashed flex items-end justify-between gap-3">
                                 <div>
                                     <p className="text-xs text-gray-400 line-through">{(room.price * 1.3).toLocaleString()}đ</p>
                                     <p className="text-2xl font-bold text-indigo-600">{room.price.toLocaleString()}đ <span className="text-xs font-normal text-gray-500">/ đêm</span></p>
                                 </div>
-                                <SelectRoomButton hotelId={hotel.id} roomId={room.id} />
+                                <div className="flex gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                        onClick={() => {
+                                            const modal = document.getElementById(`room-modal-${room.id}`);
+                                            if (modal) modal.classList.remove('hidden');
+                                        }}
+                                    >
+                                        Xem phòng
+                                    </Button>
+                                    <SelectRoomButton hotelId={hotel.id} roomId={room.id} />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Room Detail Modal */}
+                        <div id={`room-modal-${room.id}`} className="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => {
+                            if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
+                        }}>
+                            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                                <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+                                    <h3 className="text-xl font-bold">{room.name}</h3>
+                                    <button 
+                                        onClick={() => document.getElementById(`room-modal-${room.id}`)?.classList.add('hidden')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                <div className="p-6">
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        {room.images.map((img: string, idx: number) => (
+                                            <img key={idx} src={img} alt={`${room.name} ${idx + 1}`} className="w-full h-48 object-cover rounded-lg" />
+                                        ))}
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="font-bold text-lg mb-2">Mô tả</h4>
+                                            <p className="text-gray-600">{room.description}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-lg mb-2">Tiện nghi</h4>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {room.amenities.map((amenity: string, idx: number) => (
+                                                    <div key={idx} className="flex items-center gap-2 text-sm text-gray-600">
+                                                        <Check className="w-4 h-4 text-green-600" />
+                                                        {amenity}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-4 border-t">
+                                            <div>
+                                                <p className="text-sm text-gray-500">Giá mỗi đêm</p>
+                                                <p className="text-3xl font-bold text-indigo-600">{room.price.toLocaleString()}đ</p>
+                                            </div>
+                                            <SelectRoomButton hotelId={hotel.id} roomId={room.id} />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -123,8 +123,15 @@ export default function RoomManager({ hotelId, rooms }: { hotelId: string; rooms
                 </div>
                 
                 <div className="space-y-2">
-                    <Label>Link Ảnh</Label>
-                    <Input name="imageUrl" defaultValue={editingRoom?.images?.[0]} placeholder="https://..." />
+                    <Label>Link Ảnh (mỗi link 1 dòng)</Label>
+                    <Textarea 
+                        name="imageUrl" 
+                        defaultValue={editingRoom?.images?.join('\n')} 
+                        placeholder="https://image1.jpg&#10;https://image2.jpg&#10;https://image3.jpg"
+                        rows={4}
+                        className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-500">Nhập mỗi link ảnh trên một dòng. Ảnh đầu tiên sẽ là ảnh chính.</p>
                 </div>
 
                 <div className="space-y-2">

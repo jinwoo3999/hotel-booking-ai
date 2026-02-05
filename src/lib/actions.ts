@@ -98,6 +98,19 @@ export async function deleteHotel(hotelId: string) {
 // Tạo phòng mới
 export async function createRoom(formData: FormData) {
   const hotelId = formData.get("hotelId") as string;
+  const imageUrlRaw = formData.get("imageUrl") as string;
+  const amenitiesRaw = formData.get("amenities") as string;
+  
+  // Parse multiple images (one per line)
+  const images = imageUrlRaw
+    ? imageUrlRaw.split('\n').map(url => url.trim()).filter(url => url.length > 0)
+    : ["https://images.unsplash.com/photo-1566073771259-6a8506099945"];
+  
+  // Parse amenities (comma separated)
+  const amenities = amenitiesRaw
+    ? amenitiesRaw.split(',').map(a => a.trim()).filter(a => a.length > 0)
+    : ["Wifi", "TV", "AC"];
+  
   await prisma.room.create({
     data: {
       hotelId,
@@ -107,8 +120,8 @@ export async function createRoom(formData: FormData) {
       maxGuests: parseInt(formData.get("maxGuests") as string) || 2,
       capacity: parseInt(formData.get("maxGuests") as string) || 2,
       description: formData.get("description") as string,
-      images: [(formData.get("imageUrl") as string) || "https://images.unsplash.com/photo-1566073771259-6a8506099945"],
-      amenities: ["Wifi", "TV", "AC"],
+      images,
+      amenities,
     },
   });
   revalidatePath(`/admin/hotels/${hotelId}`); 
@@ -118,6 +131,19 @@ export async function createRoom(formData: FormData) {
 export async function updateRoom(formData: FormData) {
   const roomId = formData.get("roomId") as string;
   const hotelId = formData.get("hotelId") as string;
+  const imageUrlRaw = formData.get("imageUrl") as string;
+  const amenitiesRaw = formData.get("amenities") as string;
+  
+  // Parse multiple images (one per line)
+  const images = imageUrlRaw
+    ? imageUrlRaw.split('\n').map(url => url.trim()).filter(url => url.length > 0)
+    : undefined;
+  
+  // Parse amenities (comma separated)
+  const amenities = amenitiesRaw
+    ? amenitiesRaw.split(',').map(a => a.trim()).filter(a => a.length > 0)
+    : undefined;
+  
   await prisma.room.update({
     where: { id: roomId },
     data: {
@@ -126,7 +152,8 @@ export async function updateRoom(formData: FormData) {
       quantity: parseInt(formData.get("quantity") as string) || 1,
       maxGuests: parseInt(formData.get("maxGuests") as string) || 2,
       description: formData.get("description") as string,
-      ...(formData.get("imageUrl") ? { images: [formData.get("imageUrl") as string] } : {}),
+      ...(images ? { images } : {}),
+      ...(amenities ? { amenities } : {}),
     },
   });
   revalidatePath(`/admin/hotels/${hotelId}`);
