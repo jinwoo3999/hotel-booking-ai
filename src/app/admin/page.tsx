@@ -341,12 +341,14 @@ export default async function AdminDashboardPage() {
                     <div className="text-sm text-gray-500">
                       {booking.user.name} • {booking.room.name}
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-gray-400" suppressHydrationWarning>
                       {new Date(booking.createdAt).toLocaleDateString("vi-VN")}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-indigo-600">{booking.totalPrice.toLocaleString()} đ</div>
+                    <div className="font-bold text-indigo-600" suppressHydrationWarning>
+                      {booking.totalPrice.toLocaleString()} đ
+                    </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[booking.status]}`}>
                       {statusLabels[booking.status]}
                     </span>

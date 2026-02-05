@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CreditCard, Building, Calendar, User, Phone, CheckCircle2, Loader2 } from "lucide-react";
+import { CreditCard, Building, Calendar, User, Phone, CheckCircle2, Loader2, Tag } from "lucide-react";
 import { createBooking } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -35,6 +35,13 @@ export default function BookingForm({
 
   const selectedRoom = rooms.find(r => r.id === selectedRoomId);
 
+  // Voucher states
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
+  const [availableVouchers, setAvailableVouchers] = useState<any[]>([]);
+  const [showVoucherList, setShowVoucherList] = useState(false);
+  const [validatingVoucher, setValidatingVoucher] = useState(false);
+
   // Tính số đêm và tổng tiền
   const calculateNights = () => {
     const checkInDate = new Date(checkIn);
@@ -44,13 +51,71 @@ export default function BookingForm({
   };
 
   const nights = calculateNights();
-  const totalPrice = selectedRoom ? selectedRoom.price * nights : 0;
+  const basePrice = selectedRoom ? selectedRoom.price * nights : 0;
+
+  // Calculate discount
+  const calculateDiscount = () => {
+    if (!appliedVoucher) return 0;
+    
+    if (appliedVoucher.type === 'AMOUNT') {
+      return Math.min(appliedVoucher.discount, basePrice);
+    } else {
+      return Math.floor(basePrice * (appliedVoucher.discount / 100));
+    }
+  };
+
+  const discount = calculateDiscount();
+  const totalPrice = basePrice - discount;
 
   useEffect(() => {
     if (defaultRoomId && rooms.some((r) => r.id === defaultRoomId)) {
       setSelectedRoomId(defaultRoomId);
     }
   }, [defaultRoomId, rooms]);
+
+  // Fetch available vouchers
+  useEffect(() => {
+    fetchAvailableVouchers();
+  }, []);
+
+  const fetchAvailableVouchers = async () => {
+    try {
+      const response = await fetch('/api/vouchers');
+      const data = await response.json();
+      if (data.success) {
+        setAvailableVouchers(data.vouchers || []);
+      }
+    } catch (error) {
+      console.error('Error fetching vouchers:', error);
+    }
+  };
+
+  const validateVoucher = async (code: string) => {
+    if (!code.trim()) return;
+    
+    setValidatingVoucher(true);
+    try {
+      const response = await fetch('/api/vouchers/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, totalAmount: basePrice })
+      });
+      
+      const data = await response.json();
+      if (data.valid) {
+        setAppliedVoucher(data.voucher);
+        toast.success(`Áp dụng voucher ${code} thành công!`);
+      } else {
+        toast.error(data.message || 'Voucher không hợp lệ');
+        setAppliedVoucher(null);
+      }
+    } catch (error) {
+      console.error('Error validating voucher:', error);
+      toast.error('Không thể kiểm tra voucher');
+    } finally {
+      setValidatingVoucher(false);
+    }
+  };
 
   const handleCheckInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newCheckIn = e.target.value;
@@ -97,6 +162,7 @@ export default function BookingForm({
         <form action={handleSubmit} className="space-y-5">
             <input type="hidden" name="hotelId" value={hotelId} />
             <input type="hidden" name="totalPrice" value={totalPrice} />
+            <input type="hidden" name="voucherCode" value={appliedVoucher?.code || ''} />
             
             <div className="space-y-2">
                 <Label className="text-gray-700 font-semibold">Loại phòng</Label>
@@ -149,6 +215,114 @@ export default function BookingForm({
                 </div>
             </div>
 
+            {/* Voucher Section */}
+            <div className="space-y-2 pt-2 border-t border-dashed">
+              <Label className="text-gray-700 font-semibold flex items-center gap-2">
+                <Tag className="w-4 h-4 text-indigo-600" />
+                Mã giảm giá
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                  placeholder="Nhập mã voucher"
+                  className="flex-1 h-10"
+                  disabled={isSubmitting || validatingVoucher}
+                />
+                <Button
+                  type="button"
+                  onClick={() => validateVoucher(voucherCode)}
+                  variant="outline"
+                  size="sm"
+                  disabled={!voucherCode || isSubmitting || validatingVoucher}
+                  className="px-4"
+                >
+                  {validatingVoucher ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Áp dụng'
+                  )}
+                </Button>
+              </div>
+
+              {/* Available Vouchers */}
+              {availableVouchers.length > 0 && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowVoucherList(!showVoucherList)}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    {showVoucherList ? '▼' : '▶'} Xem voucher có sẵn ({availableVouchers.length})
+                  </button>
+                  
+                  {showVoucherList && (
+                    <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+                      {availableVouchers.slice(0, 5).map((voucher: any) => {
+                        const canUse = !voucher.minSpend || basePrice >= voucher.minSpend;
+                        const voucherDiscount = voucher.type === 'AMOUNT' 
+                          ? voucher.discount 
+                          : Math.floor(basePrice * voucher.discount / 100);
+                        
+                        return (
+                          <button
+                            key={voucher.id}
+                            type="button"
+                            onClick={() => {
+                              if (canUse) {
+                                setVoucherCode(voucher.code);
+                                validateVoucher(voucher.code);
+                                setShowVoucherList(false);
+                              }
+                            }}
+                            disabled={!canUse || isSubmitting}
+                            className={`w-full p-2 border rounded-lg text-left text-xs transition-all ${
+                              canUse 
+                                ? 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50' 
+                                : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="font-bold text-indigo-600">{voucher.code}</div>
+                                <div className="text-gray-600 line-clamp-1">{voucher.description}</div>
+                                {!canUse && voucher.minSpend && (
+                                  <div className="text-red-500 text-[10px] mt-1">
+                                    Yêu cầu tối thiểu {voucher.minSpend.toLocaleString()}đ
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-green-600 font-bold">
+                                -{voucherDiscount.toLocaleString()}đ
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {appliedVoucher && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-green-700 font-medium">✓ Voucher {appliedVoucher.code}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedVoucher(null);
+                        setVoucherCode('');
+                      }}
+                      className="text-green-600 hover:text-green-800 underline"
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Hiển thị tổng tiền */}
             {nights > 0 && selectedRoom && (
               <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
@@ -156,10 +330,21 @@ export default function BookingForm({
                   <span>{selectedRoom.name}</span>
                   <span>{selectedRoom.price.toLocaleString()}đ x {nights} đêm</span>
                 </div>
+                {appliedVoucher && (
+                  <div className="flex justify-between items-center text-sm text-green-600 mb-2">
+                    <span>Giảm giá ({appliedVoucher.code})</span>
+                    <span>-{discount.toLocaleString()}đ</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center font-bold text-lg text-indigo-900 border-t border-indigo-200 pt-2">
                   <span>Tổng cộng:</span>
                   <span>{totalPrice.toLocaleString()}đ</span>
                 </div>
+                {appliedVoucher && (
+                  <p className="text-xs text-green-600 text-right mt-1">
+                    Tiết kiệm {discount.toLocaleString()}đ
+                  </p>
+                )}
               </div>
             )}
 

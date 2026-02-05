@@ -77,15 +77,16 @@ export default async function AdminBookingsPage() {
                             </Badge>
                         </td>
                         <td className="px-6 py-4 text-right">
-                            {booking.status === 'PENDING' && (
+                            {booking.status === 'PENDING' ? (
                                 <div className="flex justify-end gap-2">
                                     {/* Form Xác nhận */}
                                     <form action={async () => {
                                         "use server";
                                         await updateBookingStatus(booking.id, 'CONFIRMED');
                                     }}>
-                                        <Button size="sm" className="bg-green-600 hover:bg-green-700 h-8 w-8 p-0 rounded-full">
-                                            <CheckCircle className="h-4 w-4" />
+                                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                                            <CheckCircle className="h-4 w-4 mr-1" />
+                                            Duyệt
                                         </Button>
                                     </form>
                                     
@@ -94,12 +95,23 @@ export default async function AdminBookingsPage() {
                                         "use server";
                                         await updateBookingStatus(booking.id, 'CANCELLED');
                                     }}>
-                                        <Button size="sm" variant="destructive" className="h-8 w-8 p-0 rounded-full">
-                                            <XCircle className="h-4 w-4" />
+                                        <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50">
+                                            <XCircle className="h-4 w-4 mr-1" />
+                                            Từ chối
                                         </Button>
                                     </form>
                                 </div>
-                            )}
+                            ) : booking.status === 'CONFIRMED' ? (
+                                <Badge className="bg-green-100 text-green-700">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Đã duyệt
+                                </Badge>
+                            ) : booking.status === 'CANCELLED' ? (
+                                <Badge className="bg-red-100 text-red-700">
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Đã từ chối
+                                </Badge>
+                            ) : null}
                         </td>
                     </tr>
                 ))}

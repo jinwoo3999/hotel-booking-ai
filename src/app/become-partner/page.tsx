@@ -8,24 +8,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Hotel, 
-  Star, 
-  Users, 
   TrendingUp, 
   Shield, 
   Headphones, 
-  Globe, 
   CheckCircle,
   ArrowRight,
   Building,
   MapPin,
   Phone,
   Mail,
-  User
+  AlertCircle,
 } from "lucide-react";
-import { submitPartnerApplication } from "@/lib/actions";
+import { submitPartnerApplication } from "./actions";
 
-export default async function BecomePartnerPage() {
+export default async function BecomePartnerPage({
+  searchParams,
+}: {
+  searchParams: { error?: string };
+}) {
   const session = await auth();
+  const error = searchParams.error;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -142,90 +144,57 @@ export default async function BecomePartnerPage() {
               <p className="text-gray-600">Điền thông tin để chúng tôi liên hệ và hỗ trợ bạn</p>
             </CardHeader>
             <CardContent>
-              <form action="/api/partner-application" method="POST" className="space-y-6">
-                
-                {/* Personal Info */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    Thông tin liên hệ
-                  </h3>
-                  
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="fullName">Họ và tên *</Label>
-                      <Input id="fullName" name="fullName" placeholder="Nguyễn Văn A" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="position">Chức vụ</Label>
-                      <Input id="position" name="position" placeholder="Giám đốc, Quản lý..." />
-                    </div>
-                  </div>
-                  
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input id="email" name="email" type="email" placeholder="contact@hotel.com" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Số điện thoại *</Label>
-                      <Input id="phone" name="phone" placeholder="0123456789" required />
-                    </div>
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-red-900">Có lỗi xảy ra</p>
+                    <p className="text-sm text-red-700">
+                      {error === 'missing_fields' && 'Vui lòng điền đầy đủ thông tin bắt buộc.'}
+                      {error === 'server_error' && 'Lỗi hệ thống. Vui lòng thử lại sau.'}
+                      {!['missing_fields', 'server_error'].includes(error) && 'Đã có lỗi xảy ra. Vui lòng thử lại.'}
+                    </p>
                   </div>
                 </div>
-
-                {/* Hotel Info */}
+              )}
+              <form action={submitPartnerApplication} className="space-y-6">
+                
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Building className="w-4 h-4" />
-                    Thông tin khách sạn
-                  </h3>
-                  
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Họ và tên *</Label>
+                    <Input id="fullName" name="fullName" placeholder="Nguyễn Văn A" required />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input id="email" name="email" type="email" placeholder="contact@hotel.com" required />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Số điện thoại *</Label>
+                    <Input id="phone" name="phone" placeholder="0123456789" required />
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="hotelName">Tên khách sạn *</Label>
                     <Input id="hotelName" name="hotelName" placeholder="Khách sạn ABC" required />
                   </div>
-                  
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city">Thành phố *</Label>
-                      <Input id="city" name="city" placeholder="Hà Nội, TP.HCM, Đà Nẵng..." required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="roomCount">Số phòng</Label>
-                      <Input id="roomCount" name="roomCount" type="number" placeholder="50" />
-                    </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="city">Thành phố *</Label>
+                    <Input id="city" name="city" placeholder="Hà Nội, TP.HCM, Đà Nẵng..." required />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="address">Địa chỉ chi tiết *</Label>
                     <Input id="address" name="address" placeholder="123 Đường ABC, Quận XYZ" required />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website (nếu có)</Label>
-                    <Input id="website" name="website" placeholder="https://hotel.com" />
-                  </div>
-                </div>
 
-                {/* Business Info */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Globe className="w-4 h-4" />
-                    Thông tin kinh doanh
-                  </h3>
-                  
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="businessLicense">Số giấy phép kinh doanh</Label>
-                      <Input id="businessLicense" name="businessLicense" placeholder="0123456789" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="taxCode">Mã số thuế</Label>
-                      <Input id="taxCode" name="taxCode" placeholder="0123456789" />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="roomCount">Số phòng</Label>
+                    <Input id="roomCount" name="roomCount" type="number" placeholder="50" />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="description">Mô tả về khách sạn</Label>
                     <Textarea 
@@ -235,40 +204,12 @@ export default async function BecomePartnerPage() {
                       rows={4}
                     />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="experience">Kinh nghiệm trong ngành</Label>
-                    <select 
-                      id="experience" 
-                      name="experience"
-                      className="w-full h-10 px-3 rounded-md border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">Chọn kinh nghiệm</option>
-                      <option value="new">Mới bắt đầu (dưới 1 năm)</option>
-                      <option value="1-3">1-3 năm</option>
-                      <option value="3-5">3-5 năm</option>
-                      <option value="5+">Trên 5 năm</option>
-                    </select>
-                  </div>
                 </div>
 
-                {/* Additional Notes */}
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Ghi chú thêm</Label>
-                  <Textarea 
-                    id="notes" 
-                    name="notes" 
-                    placeholder="Câu hỏi hoặc yêu cầu đặc biệt..."
-                    rows={3}
-                  />
-                </div>
-
-                {/* Terms */}
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
                   <input type="checkbox" id="terms" name="terms" required className="mt-1" />
                   <label htmlFor="terms" className="text-sm text-gray-600">
-                    Tôi đồng ý với <a href="#" className="text-indigo-600 hover:underline">Điều khoản dịch vụ</a> và 
-                    <a href="#" className="text-indigo-600 hover:underline"> Chính sách bảo mật</a> của Lumina Stay.
+                    Tôi đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của Lumina Stay.
                   </label>
                 </div>
 

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ClientSiteHeader } from "@/components/layouts/ClientSiteHeader";
-import { HotelCard } from "@/components/hotels/HotelCard";
+import { HotelSearchResults } from "@/components/hotels/HotelSearchResults";
 import { MapPin, Camera, Star, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -223,38 +223,13 @@ export default async function SearchPage(props: SearchPageProps) {
                         <Star className="h-6 w-6 text-yellow-600 fill-yellow-600" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Top 10 Khách sạn tốt nhất</h2>
-                        <p className="text-gray-500 text-sm">Được đánh giá cao bởi du khách tại {cityName}</p>
+                        <h2 className="text-2xl font-bold text-gray-900">Khách sạn tại {cityName}</h2>
+                        <p className="text-gray-500 text-sm">Tìm thấy {hotels.length} khách sạn phù hợp</p>
                     </div>
                 </div>
             </div>
 
-            {hotels.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {hotels.map((hotel, index) => (
-                        <div key={hotel.id} className="relative group h-full">
-                            {/* Số thứ tự Top */}
-                            {index < 3 && (
-                                <div className="absolute -top-3 -left-3 z-20 h-10 w-10 bg-yellow-400 text-black font-black flex items-center justify-center rounded-full shadow-lg border-2 border-white">
-                                    #{index + 1}
-                                </div>
-                            )}
-                            
-                            <HotelCard hotel={hotel} />
-                            
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-                    <Info className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <h3 className="font-bold text-gray-900 text-lg">Không tìm thấy khách sạn nào tại “{query}”</h3>
-                    <p className="text-gray-500 mb-6">Hãy thử tìm địa điểm khác hoặc quay lại trang chủ.</p>
-                    <Link href="/">
-                        <Button variant="outline">Quay lại trang chủ</Button>
-                    </Link>
-                </div>
-            )}
+            <HotelSearchResults hotels={hotels} />
         </section>
 
       </main>

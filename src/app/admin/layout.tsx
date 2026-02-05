@@ -11,6 +11,7 @@ import {
   BookOpen,
   MapPin,
   Package,
+  Mail,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -42,6 +43,7 @@ export default async function AdminLayout({
     ...(isSuperAdmin ? [
         { href: "/admin/users", label: "Người dùng hệ thống", icon: Users },
         { href: "/admin/vouchers", label: "Voucher & Ưu đãi", icon: TicketPercent },
+        { href: "/admin/email-preview", label: "Xem Email Partner", icon: Mail },
         { href: "/admin/settings", label: "Cài đặt hệ thống", icon: Settings },
     ] : [])
   ];

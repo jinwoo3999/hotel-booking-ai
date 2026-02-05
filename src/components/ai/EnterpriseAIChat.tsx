@@ -391,6 +391,196 @@ export default function EnterpriseAIChat() {
 
     const lower = userInput.toLowerCase();
     
+    // Detect cancel booking intent
+    if (lower.includes('hủy') || lower.includes('cancel') || lower.includes('huỷ')) {
+      addAIMessage(
+        "🔍 Để tôi kiểm tra các booking của bạn...",
+        "Fetching user bookings"
+      );
+
+      try {
+        const res = await fetch('/api/bookings/history');
+        const data = await res.json();
+
+        const bookings = data.data || data.bookings || [];
+
+        if (bookings.length === 0) {
+          addAIMessage(
+            "📋 Bạn chưa có booking nào trong hệ thống.\n\nHãy đặt phòng trước khi hủy nhé! 😊",
+            "No bookings found"
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Filter active bookings (PENDING or CONFIRMED)
+        const activeBookings = bookings.filter((b: any) => 
+          b.status === 'PENDING' || b.status === 'CONFIRMED'
+        );
+
+        if (activeBookings.length === 0) {
+          addAIMessage(
+            "📋 Bạn không có booking nào có thể hủy.\n\nChỉ có thể hủy booking ở trạng thái PENDING hoặc CONFIRMED.",
+            "No cancellable bookings"
+          );
+          setLoading(false);
+          return;
+        }
+
+        let message = `📋 **Danh sách booking có thể hủy:**\n\n`;
+        activeBookings.forEach((b: any, idx: number) => {
+          message += `${idx + 1}. **${b.hotel?.name || 'N/A'}**\n`;
+          message += `   • Mã: ${b.id.slice(-6).toUpperCase()}\n`;
+          message += `   • Check-in: ${new Date(b.checkIn).toLocaleDateString('vi-VN')}\n`;
+          message += `   • Trạng thái: ${b.status}\n`;
+          message += `   • Tổng tiền: ${b.totalPrice.toLocaleString()}đ\n\n`;
+        });
+
+        message += `Bạn muốn hủy booking nào? Vui lòng nhập **mã booking** (6 ký tự cuối).`;
+
+        addAIMessage(message, "List of cancellable bookings", { 
+          action: 'cancel_booking',
+          bookings: activeBookings 
+        });
+        setLoading(false);
+        return;
+      } catch (error) {
+        addAIMessage(
+          "😓 Xin lỗi, có lỗi khi lấy danh sách booking. Vui lòng thử lại sau.",
+          "API error"
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Check if user is responding to cancel booking request
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.data?.action === 'cancel_booking') {
+      const bookingCode = userInput.toUpperCase().slice(-6);
+      const bookings = lastMessage.data.bookings || [];
+      const booking = bookings.find((b: any) => b.id.slice(-6).toUpperCase() === bookingCode);
+
+      if (!booking) {
+        addAIMessage(
+          `❌ Không tìm thấy booking với mã **${bookingCode}**.\n\nVui lòng kiểm tra lại mã booking.`,
+          "Invalid booking code"
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Check cancellation policy
+      try {
+        const checkRes = await fetch(`/api/bookings/cancel?bookingId=${booking.id}`);
+        const checkData = await checkRes.json();
+
+        if (!checkData.cancellation?.canCancel) {
+          addAIMessage(
+            `⚠️ **Không thể hủy booking này**\n\n` +
+            `• Booking: ${booking.hotel?.name}\n` +
+            `• Lý do: Đã quá thời hạn hủy\n` +
+            `• Thời hạn: ${new Date(checkData.cancellation.deadline).toLocaleString('vi-VN')}\n\n` +
+            `Vui lòng liên hệ khách sạn để được hỗ trợ.`,
+            "Cannot cancel - past deadline"
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Show confirmation
+        const refundInfo = checkData.cancellation.refundAmount > 0 
+          ? `\n• Hoàn tiền: ${checkData.cancellation.refundAmount.toLocaleString()}đ (${checkData.cancellation.refundPercent}%)`
+          : '';
+
+        addAIMessage(
+          `⚠️ **Xác nhận hủy booking**\n\n` +
+          `• Khách sạn: ${booking.hotel?.name}\n` +
+          `• Check-in: ${new Date(booking.checkIn).toLocaleDateString('vi-VN')}\n` +
+          `• Tổng tiền: ${booking.totalPrice.toLocaleString()}đ${refundInfo}\n\n` +
+          `Bạn có chắc muốn hủy? Nhập **"XÁC NHẬN"** để hủy hoặc **"HỦY BỎ"** để giữ lại booking.`,
+          "Awaiting confirmation",
+          {
+            action: 'confirm_cancel',
+            bookingId: booking.id,
+            bookingInfo: booking,
+            refundInfo: checkData.cancellation
+          }
+        );
+        setLoading(false);
+        return;
+      } catch (error) {
+        addAIMessage(
+          "😓 Xin lỗi, có lỗi khi kiểm tra điều kiện hủy. Vui lòng thử lại sau.",
+          "API error"
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Check if user is confirming cancellation
+    if (lastMessage?.data?.action === 'confirm_cancel') {
+      if (lower.includes('xác nhận') || lower.includes('xac nhan') || lower === 'ok' || lower === 'yes') {
+        const bookingId = lastMessage.data.bookingId;
+        
+        try {
+          const cancelRes = await fetch('/api/bookings/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              bookingId,
+              reason: 'Hủy qua AI Assistant'
+            })
+          });
+
+          const cancelData = await cancelRes.json();
+
+          if (cancelRes.ok) {
+            const refundMsg = cancelData.refund?.amount > 0
+              ? `\n\n💰 **Hoàn tiền:** ${cancelData.refund.amount.toLocaleString()}đ (${cancelData.refund.percent}%) sẽ được xử lý trong 3-5 ngày làm việc.`
+              : '';
+
+            addAIMessage(
+              `✅ **Đã hủy booking thành công!**\n\n` +
+              `• Mã booking: ${bookingId.slice(-6).toUpperCase()}\n` +
+              `• Khách sạn: ${lastMessage.data.bookingInfo.hotel?.name}${refundMsg}\n\n` +
+              `Bạn có thể kiểm tra trong mục "Lịch sử đặt phòng".`,
+              "Booking cancelled successfully"
+            );
+          } else {
+            addAIMessage(
+              `❌ **Không thể hủy booking**\n\n${cancelData.error || 'Lỗi không xác định'}`,
+              "Cancellation failed"
+            );
+          }
+          setLoading(false);
+          return;
+        } catch (error) {
+          addAIMessage(
+            "😓 Xin lỗi, có lỗi khi hủy booking. Vui lòng thử lại sau.",
+            "API error"
+          );
+          setLoading(false);
+          return;
+        }
+      } else if (lower.includes('hủy bỏ') || lower.includes('huy bo') || lower === 'no' || lower === 'không') {
+        addAIMessage(
+          "✅ Đã giữ lại booking của bạn.\n\nCó gì tôi có thể giúp thêm không?",
+          "Cancellation aborted"
+        );
+        setLoading(false);
+        return;
+      } else {
+        addAIMessage(
+          `Vui lòng nhập **"XÁC NHẬN"** để hủy booking hoặc **"HỦY BỎ"** để giữ lại.`,
+          "Invalid confirmation response"
+        );
+        setLoading(false);
+        return;
+      }
+    }
+    
     // Detect intent
     let intent = 'leisure';
     if (lower.includes('công tác') || lower.includes('business')) intent = 'business';

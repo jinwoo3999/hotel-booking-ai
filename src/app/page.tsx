@@ -189,9 +189,11 @@ export default async function HomePage() {
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-orange-200">Hợp tác cùng Lumina!</span>
                      </h2>
                      <div className="flex flex-col sm:flex-row gap-4">
-                        <Button size="lg" className="bg-white text-black hover:bg-gray-100 font-bold text-lg rounded-2xl h-14 px-8 shadow-xl transition-transform hover:-translate-y-1">
-                            Đăng ký đối tác
-                        </Button>
+                        <Link href="/become-partner">
+                          <Button size="lg" className="bg-white text-black hover:bg-gray-100 font-bold text-lg rounded-2xl h-14 px-8 shadow-xl transition-transform hover:-translate-y-1">
+                              Đăng ký đối tác
+                          </Button>
+                        </Link>
                      </div>
                  </div>
             </div>

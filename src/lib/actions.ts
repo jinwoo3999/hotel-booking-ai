@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
 import { getRoomAvailabilitySummary } from "@/lib/inventory";
+import { sendPartnerApprovalEmail, sendPartnerApprovalEmailExisting } from "@/lib/email";
 
 // Tạo khách sạn mới
 export async function createHotel(formData: FormData) {
@@ -263,7 +264,7 @@ export async function createBooking(formData: FormData) {
           checkOut,
           originalPrice: totalPrice,
           totalPrice,
-          status: paymentMethod === "PAY_NOW" ? "PENDING" : "PENDING",
+          status: paymentMethod === "PAY_NOW" ? "PENDING_PAYMENT" : "PENDING",
           paymentMethod,
           guestName: formData.get("guestName") as string || user.name || "Khách",
           guestPhone: formData.get("guestPhone") as string || "",
@@ -286,15 +287,26 @@ export async function createBooking(formData: FormData) {
 
     console.log("✅ Booking created successfully:", booking.id);
 
-    // Redirect to payment page
+    // Redirect based on payment method
     revalidatePath("/dashboard/history");
     
-    return { 
-      success: true, 
-      bookingId: booking.id,
-      redirectTo: `/payment/${booking.id}`,
-      message: "Đặt phòng thành công! Đang chuyển đến trang thanh toán..."
-    };
+    if (paymentMethod === "PAY_NOW") {
+      // Redirect to payment page for immediate payment
+      return { 
+        success: true, 
+        bookingId: booking.id,
+        redirectTo: `/payment/${booking.id}`,
+        message: "Đặt phòng thành công! Đang chuyển đến trang thanh toán..."
+      };
+    } else {
+      // PAY_AT_HOTEL - redirect to booking details
+      return { 
+        success: true, 
+        bookingId: booking.id,
+        redirectTo: `/dashboard/booking/${booking.id}`,
+        message: "Đặt phòng thành công! Đơn đặt phòng đang chờ admin xác nhận."
+      };
+    }
     
   } catch (error) {
     console.error("❌ Booking creation error:", error);
@@ -889,4 +901,125 @@ export async function rejectPartnerApplicationAction(formData: FormData) {
   } catch (error) {
     console.error("Reject application error:", error);
   }
+}
+
+// Duyệt đơn đăng ký partner
+export async function approvePartnerApplication(applicationId: string) {
+  const session = await auth();
+  
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user?.role || "")) {
+    redirect("/login");
+  }
+
+  try {
+    const application = await prisma.partnerApplication.findUnique({
+      where: { id: applicationId },
+      include: { user: true }
+    });
+
+    if (!application) {
+      console.error("Application not found:", applicationId);
+      return;
+    }
+
+    let newUser = null;
+    let generatedPassword = null;
+
+    await prisma.$transaction(async (tx) => {
+      // Update application status
+      await tx.partnerApplication.update({
+        where: { id: applicationId },
+        data: {
+          status: 'APPROVED',
+          reviewedAt: new Date(),
+          reviewedBy: session.user.id
+        }
+      });
+
+      // Nếu đã có user, upgrade role
+      if (application.userId) {
+        await tx.user.update({
+          where: { id: application.userId },
+          data: { role: 'PARTNER' }
+        });
+      } else {
+        // Tạo tài khoản mới cho partner
+        // Generate random password
+        generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase();
+        const hashedPassword = await hash(generatedPassword, 10);
+        
+        newUser = await tx.user.create({
+          data: {
+            email: application.email,
+            name: application.fullName,
+            password: hashedPassword,
+            role: 'PARTNER',
+          }
+        });
+
+        // Link user với application
+        await tx.partnerApplication.update({
+          where: { id: applicationId },
+          data: { userId: newUser.id }
+        });
+
+        console.log("✅ Created new partner account:", newUser.email);
+      }
+    });
+
+    // Gửi email thông báo
+    if (newUser && generatedPassword) {
+      await sendPartnerApprovalEmail({
+        email: application.email,
+        name: application.fullName,
+        hotelName: application.hotelName,
+        username: application.email,
+        password: generatedPassword,
+      });
+      console.log("✅ Sent approval email to:", application.email);
+    } else if (application.userId) {
+      // Nếu đã có tài khoản, chỉ gửi email thông báo duyệt
+      await sendPartnerApprovalEmailExisting({
+        email: application.email,
+        name: application.fullName,
+        hotelName: application.hotelName,
+      });
+      console.log("✅ Sent approval notification to existing user:", application.email);
+    }
+
+    console.log("✅ Partner application approved:", applicationId);
+    revalidatePath("/admin/partner-apps");
+    revalidatePath("/admin/partners");
+  } catch (error) {
+    console.error("Error approving partner application:", error);
+  }
+  
+  redirect("/admin/partner-apps");
+}
+
+// Từ chối đơn đăng ký partner
+export async function rejectPartnerApplication(applicationId: string) {
+  const session = await auth();
+  
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user?.role || "")) {
+    redirect("/login");
+  }
+
+  try {
+    await prisma.partnerApplication.update({
+      where: { id: applicationId },
+      data: {
+        status: 'REJECTED',
+        reviewedAt: new Date(),
+        reviewedBy: session.user.id
+      }
+    });
+
+    console.log("✅ Partner application rejected:", applicationId);
+    revalidatePath("/admin/partner-apps");
+  } catch (error) {
+    console.error("Error rejecting partner application:", error);
+  }
+  
+  redirect("/admin/partner-apps");
 }
