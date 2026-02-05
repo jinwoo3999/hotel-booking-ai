@@ -41,9 +41,9 @@ export default async function HotelDetailPage(props: { params: Promise<{ id: str
           <ClientSiteHeader session={session as any} />
       </div>
 
-      <main className="container mx-auto max-w-7xl px-4 py-8 relative z-0">
+      <main className="container mx-auto max-w-7xl px-4 py-8 relative z-0 mt-4">
         
-        <div className="mb-8 bg-white rounded-2xl p-6 shadow-sm border">
+        <div className="mb-8 bg-white rounded-2xl p-6 shadow-sm border mt-4">
             <div className="flex items-start gap-6">
                 <img 
                     src={getImg(hotel.images, 0)} 
