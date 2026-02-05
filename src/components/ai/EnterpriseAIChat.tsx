@@ -634,8 +634,8 @@ export default function EnterpriseAIChat() {
                     __html: msg.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>') 
                   }} />
                   
-                  {/* Show Hotels */}
-                  {msg.data?.hotels && msg.data.hotels.length > 0 && (
+                  {/* Show Hotels - only if not showing rooms */}
+                  {msg.data?.hotels && msg.data.hotels.length > 0 && !msg.data?.showRooms && (
                     <div className="mt-3 space-y-2">
                       {msg.data.hotels.slice(0, 3).map((hotel: any) => (
                         <button
