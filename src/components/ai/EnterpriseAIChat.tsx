@@ -101,7 +101,7 @@ function BookingForm({ data, onSubmit }: { data: any; onSubmit: (formData: any) 
   const voucherMeetsMinSpend = !selectedVoucher?.minSpend || baseAmount >= selectedVoucher.minSpend;
 
   return (
-    <Card className="mt-4 p-4 bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-300">
+    <Card className="mt-4 p-4 bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-300 rounded-xl">
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="text-sm font-bold text-green-900 mb-3">
           📝 Thông tin đặt phòng
@@ -597,11 +597,11 @@ export default function EnterpriseAIChat() {
 
       {/* Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl h-[85vh] p-0 gap-0">
+        <DialogContent className="max-w-4xl h-[85vh] p-0 gap-0 rounded-2xl overflow-hidden" showCloseButton={false}>
           <DialogTitle className="sr-only">Trợ lý AI thông minh</DialogTitle>
           
           {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex items-center justify-between rounded-t-2xl">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                 <Bot className="w-6 h-6 text-white" />
@@ -613,7 +613,7 @@ export default function EnterpriseAIChat() {
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-white/80 hover:text-white transition-colors"
+              className="text-white/80 hover:text-white transition-colors z-10"
             >
               <X className="w-5 h-5" />
             </button>
