@@ -31,10 +31,13 @@ export default function BookRoomPage() {
   const [specialRequests, setSpecialRequests] = useState('');
   const [voucherCode, setVoucherCode] = useState(voucherParam);
   const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
+  const [availableVouchers, setAvailableVouchers] = useState<any[]>([]);
+  const [showVoucherList, setShowVoucherList] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'PAY_NOW' | 'PAY_AT_HOTEL'>('PAY_NOW');
 
   useEffect(() => {
     fetchData();
+    fetchAvailableVouchers();
   }, [roomId, hotelId]);
 
   const fetchData = async () => {
@@ -65,6 +68,18 @@ export default function BookRoomPage() {
       toast.error('Không thể tải thông tin phòng');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAvailableVouchers = async () => {
+    try {
+      const response = await fetch('/api/vouchers');
+      const data = await response.json();
+      if (data.success) {
+        setAvailableVouchers(data.vouchers || []);
+      }
+    } catch (error) {
+      console.error('Error fetching vouchers:', error);
     }
   };
 
@@ -319,12 +334,12 @@ export default function BookRoomPage() {
 
               {/* Voucher Input */}
               <div className="mb-4 pb-4 border-b">
-                <Label className="text-sm mb-2 block">Mã giảm giá</Label>
+                <Label className="text-sm mb-2 block font-semibold">🎫 Mã giảm giá</Label>
                 <div className="flex gap-2">
                   <Input
                     value={voucherCode}
                     onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                    placeholder="Nhập mã"
+                    placeholder="Nhập mã voucher (VD: WELCOME2026)"
                     className="flex-1"
                   />
                   <Button
@@ -332,10 +347,77 @@ export default function BookRoomPage() {
                     variant="outline"
                     size="sm"
                     disabled={!voucherCode}
+                    className="px-3"
                   >
                     <Tag className="w-4 h-4" />
                   </Button>
                 </div>
+                
+                {/* Available Vouchers */}
+                {availableVouchers.length > 0 && (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowVoucherList(!showVoucherList)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                    >
+                      {showVoucherList ? '▼' : '▶'} Xem voucher có sẵn ({availableVouchers.length})
+                    </button>
+                    
+                    {showVoucherList && (
+                      <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+                        {availableVouchers.slice(0, 5).map((voucher: any) => {
+                          const basePrice = calculateBasePrice();
+                          const canUse = !voucher.minSpend || basePrice >= voucher.minSpend;
+                          const discount = voucher.type === 'AMOUNT' 
+                            ? voucher.discount 
+                            : Math.floor(basePrice * voucher.discount / 100);
+                          
+                          return (
+                            <button
+                              key={voucher.id}
+                              type="button"
+                              onClick={() => {
+                                if (canUse) {
+                                  setVoucherCode(voucher.code);
+                                  validateVoucher(voucher.code);
+                                  setShowVoucherList(false);
+                                }
+                              }}
+                              disabled={!canUse}
+                              className={`w-full p-2 border rounded-lg text-left text-xs transition-all ${
+                                canUse 
+                                  ? 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50' 
+                                  : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-bold text-indigo-600">{voucher.code}</div>
+                                  <div className="text-gray-600 line-clamp-1">{voucher.description}</div>
+                                  {!canUse && voucher.minSpend && (
+                                    <div className="text-red-500 text-[10px] mt-1">
+                                      Yêu cầu tối thiểu {voucher.minSpend.toLocaleString()}đ
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-green-600 font-bold">
+                                  -{discount.toLocaleString()}đ
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {voucherCode && !appliedVoucher && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Nhấn nút để kiểm tra voucher
+                  </p>
+                )}
               </div>
 
               <div className="pt-4 border-t mb-6">
